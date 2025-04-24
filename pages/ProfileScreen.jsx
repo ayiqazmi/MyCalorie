@@ -129,7 +129,7 @@ const isDark = theme === "dark";
   style={styles.settingItem}
   onPress={() => navigation.navigate("EditProfile")}
 >
-  <Text style={styles.settingText}>Edit Proaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaafile</Text>
+  <Text style={styles.settingText}>Edit Profile</Text>
   <Ionicons name="chevron-forward" size={20} color={styles.icon.color} />
 </TouchableOpacity>
 
