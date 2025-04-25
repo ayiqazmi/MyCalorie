@@ -87,22 +87,10 @@ const EditProfile = ({ navigation }) => {
         Alert.alert("Error", "User is not authenticated.");
       }
     } catch (error) {
-        if (error.code === "auth/requires-recent-login") {
-            // Handle session expiration
-            Alert.alert(
-              "Session Expired",
-              "Your session has expired. Please log in again to update your password.",
-              [
-                {
-                  text: "OK",
-                  onPress: () => navigation.navigate("Login"), // Redirect to login screen
-                },
-              ]
-            );
-        } else {
-            console.error("Error updating password:", error);
-            Alert.alert("Error", "Failed to update password. Please try again.");
-    }}
+      console.error("Error updating password:", error);
+      Alert.alert("Error", "Failed to update password. Please try again.");
+        
+    }
   };
 
   
@@ -273,7 +261,13 @@ const lightStyles = StyleSheet.create({
         borderBottomWidth: 1,
         borderColor: "#ccc",
       },
-      
+      headerTitle: {
+        fontSize: 18,
+        fontWeight: "bold",
+        flex: 1,
+        textAlign: "center",
+        marginLeft: -24, // offsets the icon
+      },
       saveText: {
         fontSize: 16,
         fontWeight: "bold",
