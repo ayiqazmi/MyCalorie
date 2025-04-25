@@ -4,6 +4,7 @@ import LoginScreen from './pages/auth/LoginScreen';
 import RegisterScreen from './pages/auth/RegisterScreen';
 import HomeScreen from './pages/HomeScreen';
 import ProfileScreen from './pages/ProfileScreen';
+import EditProfile from './pages/EditProfile';
 import { useEffect, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from './config/firebase-config.js';
@@ -34,6 +35,7 @@ export default function App() {
           <>
           <Stack.Screen name="Home" component={HomeScreen} />
           <Stack.Screen name="Profile" component={ProfileScreen} />
+          <Stack.Screen name="EditProfile" component={EditProfile} />
           </>
         ) : (
           <>

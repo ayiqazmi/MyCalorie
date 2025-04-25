@@ -21,6 +21,7 @@ import { useThemedStyles } from "../hooks/useThemedStyles"; // adjust path
 
 
 
+
 export default function ProfileScreen() {
   const [profileImage, setProfileImage] = useState(null);
   const [username, setUsername] = useState("");
