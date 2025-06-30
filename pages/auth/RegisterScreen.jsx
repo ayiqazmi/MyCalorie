@@ -1,7 +1,7 @@
     // pages/auth/RegisterScreen.jsx
     import { useState } from "react";
     import { View, Text, TextInput, Button, StyleSheet, Alert, TouchableOpacity } from "react-native";
-    import { createUserWithEmailAndPassword } from "firebase/auth";
+    import { createUserWithEmailAndPassword, sendEmailVerification } from "firebase/auth";
     import { auth } from "../../config/firebase-config";
     import React, { useEffect } from 'react';
     import { getAuth } from 'firebase/auth';
@@ -54,11 +54,21 @@ if (!passwordRegex.test(password)) {
       displayName: username
     });
 
-    await setDoc(doc(db, "users", user.uid), {
-      email,
-      username,
-      createdAt: new Date()
-    });
+    // Send email verification
+await sendEmailVerification(user);
+
+await setDoc(doc(db, "users", user.uid), {
+  email,
+  username,
+  createdAt: new Date(),
+  emailVerified: false // optional: store this
+});
+
+// Alert + redirect to verify screen
+Alert.alert(
+  "Verify Your Email",
+  "A verification link has been sent to your email. Please verify before logging in."
+);
 
     Alert.alert("Success", "Account created!");
     navigation.replace("Home"); // ✅ Optional: navigate to Home after registration
