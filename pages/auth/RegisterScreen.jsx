@@ -17,32 +17,57 @@
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
+    const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])(?=.*[A-Z]).{8,}$/;
     const db = getFirestore();
 
-    const handleRegister = async () => {
-        if (password !== confirmPassword) {
-            Alert.alert("Error", "Passwords do not match");
-            return;
-        }              
-        try {
-            const res = await createUserWithEmailAndPassword(auth, email, password);
-            const user = res.user;
+const handleRegister = async () => {
+  if (!email || !username || !password || !confirmPassword) {
+    Alert.alert("Missing Fields", "All fields are required.");
+    return;
+  }
 
-        
-            // Add displayName to Firebase Auth
-        await updateProfile(user, {
-            displayName: username});
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    Alert.alert("Invalid Email", "Please enter a valid email address.");
+    return;
+  }
 
-        await setDoc(doc(db, "users", user.uid), {
-            email: email,
-            username: username,
-            createdAt: new Date()
-          });
-        Alert.alert("Success", "Account created!");
-        } catch (error) {
-        Alert.alert("Errorrrr", error.message);
-        }
-    };
+  if (password !== confirmPassword) {
+    Alert.alert("Error", "Passwords do not match");
+    return;
+  }
+
+if (!passwordRegex.test(password)) {
+  Alert.alert(
+    "Weak Password",
+    "Password must be at least 8 characters long and include:\n• 1 uppercase letter\n• 1 number\n• 1 special character (@$!%*#?&)"
+  );
+  return;
+}
+
+
+  try {
+    const res = await createUserWithEmailAndPassword(auth, email, password);
+    const user = res.user;
+
+    await updateProfile(user, {
+      displayName: username
+    });
+
+    await setDoc(doc(db, "users", user.uid), {
+      email,
+      username,
+      createdAt: new Date()
+    });
+
+    Alert.alert("Success", "Account created!");
+    navigation.replace("Home"); // ✅ Optional: navigate to Home after registration
+  } catch (error) {
+    console.log("Firebase Auth Error:", error);
+    Alert.alert("Error", error.message);
+  }
+};
+
 
     useEffect(() => {
         try {

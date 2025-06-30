@@ -1,0 +1,2 @@
+export const FATSECRET_CLIENT_ID = "d5370add829d41cc8084073363d8f411";
+export const FATSECRET_CLIENT_SECRET = "0fbc9ac0de9c443f892de24158cae2cb";

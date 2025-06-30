@@ -1,74 +1,89 @@
-import React, { useState,useLayoutEffect, useEffect } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Image,
-  ScrollView,
-  Alert,
-} from "react-native";
-import * as ImagePicker from "expo-image-picker";
-import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import React, { useState, useLayoutEffect, useEffect } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, Alert } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from '@react-navigation/native';
-import { Home, Target, ClipboardList, User  } from "lucide-react-native";
-import { getAuth, onAuthStateChanged } from "firebase/auth";
-//import { auth } from "../config/firebase-config.js";
-import { getFirestore, doc, getDoc } from "firebase/firestore";
-import { useTheme } from "../ThemeContext"; // adjust path
-//import { StatusBar } from "expo-status-bar";
-import { useThemedStyles } from "../hooks/useThemedStyles"; // adjust path
-
-
-
+import { Feather } from '@expo/vector-icons';
+import { onAuthStateChanged, signOut } from "firebase/auth";
+import { doc, getDoc, getFirestore } from "firebase/firestore";
+import { auth } from "../config/firebase-config.js";
+//import { useThemedStyles } from "../hooks/useThemedStyles";
 
 export default function ProfileScreen() {
   const [profileImage, setProfileImage] = useState(null);
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
+  const [healthDetails, setHealthDetails] = useState({});
   const navigation = useNavigation();
-  const auth = getAuth();
   const db = getFirestore();
-  const styles = useThemedStyles(lightStyles, darkStyles);
-  
+const styles = lightStyles;
 
   useLayoutEffect(() => {
-    navigation.setOptions({
-      title: 'My Profile',
-    });
+    navigation.setOptions({ title: "My Profile" });
   }, [navigation]);
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        const userDocRef = doc(db, "users", user.uid);
-        const userDocSnap = await getDoc(userDocRef);
-  
-        if (userDocSnap.exists()) {
-          const userData = userDocSnap.data();
-          setUsername(userData.username || "No username set");
-          setEmail(user.email); // Still use email from Firebase Auth
-          if (userData.photoURL) {
-            setProfileImage(userData.photoURL);
-          }
-        } else {
-          console.log("No user document found!");
-        }
+useEffect(() => {
+  const fetchUserData = async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        Alert.alert("Error", "No user is signed in.");
+        return;
       }
-    });
 
-    return unsubscribe; // cleanup listener on unmount
-  }, []);
+      const userDocRef = doc(db, "users", user.uid);
+      const userDocSnap = await getDoc(userDocRef);
 
-  const pickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 1,
-    });
+      if (userDocSnap.exists()) {
+        const userData = userDocSnap.data();
+        setUsername(userData.username || "No username set");
+        setProfileImage(userData.photoURL || null);
+        setEmail(user.email); // From Firebase Auth
 
-    if (!result.canceled) {
-      setProfileImage(result.assets[0].uri);
+        const health = userData.healthDetails || {};
+        setHealthDetails({
+          gender: health.gender || "Not set",
+          birthday: health.birthday || "Not set",
+          age: health.age || "Not set",
+          height: health.height || "Not set",
+          weight: health.weight || "Not set",
+          bmi: health.bmi || "Not set",
+          complications: health.complications || [],
+          allergies: health.allergies || [],
+          bmr: health.bmr || "Not calculated",
+          maintenanceCalories: health.maintenanceCalories || "Not calculated",
+          targetCalories: health.targetCalories || "Not calculated",
+        });
+      } else {
+        Alert.alert("Error", "User data not found in Firestore.");
+      }
+
+    } catch (error) {
+      console.error("Error fetching user data:", error);
+      Alert.alert("Error", "Failed to load user data.");
+    }
+  };
+
+  fetchUserData();
+}, []);
+
+
+
+  const handleEditProfile = () => {
+    navigation.navigate("EditProfile");
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      Alert.alert("Logged Out", "You have been signed out.");
+      navigation.reset({
+  index: 0,
+  routes: [{ name: "Login" }],
+});
+
+    } catch (error) {
+      console.error("Logout error:", error);
+      Alert.alert("Error", "Failed to log out.");
     }
   };
 
@@ -78,310 +93,124 @@ export default function ProfileScreen() {
       { text: "Delete", onPress: () => console.log("Account deleted") },
     ]);
   };
-  
-const { theme, toggleTheme } = useTheme();
-
-//const isDark = theme === "dark";
-
-const isDark = theme === "dark";
-
-
-
 
   return (
     <View style={styles.outerContainer}>
-
-    <ScrollView style={styles.container}
-      contentContainerStyle={styles.scrollContent}
-    >
-      
-
-      {/* Profile Section */}
-      <View style={styles.profileSection}>
-        <View style={styles.imageWrapper}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.profileSection}>
           <Image
-            source={
-              profileImage
-                ? { uri: profileImage }
-                : require("../assets/profile-placeholder.png")
-            }
+            source={profileImage ? { uri: profileImage } : require("../assets/profile-placeholder.png")}
             style={styles.profileImage}
           />
-          <TouchableOpacity onPress={pickImage} style={styles.cameraIcon}>
-            <Ionicons name="camera" size={20} color="white" />
-          </TouchableOpacity>
+          <Text style={styles.username}>{username}</Text>
+          <Text style={styles.email}>{email}</Text>
         </View>
-        <Text style={styles.username}>{username}</Text>
-        <Text style={styles.email}>{email}</Text>
-      </View>
 
-      {/* General Settings */}
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionHeaderText}>General Settings</Text>
-      </View>
+        <View style={styles.sectionHeader}>
+  <Text style={styles.sectionHeaderText}>Health Details</Text>
+</View>
 
-      <TouchableOpacity style={styles.settingItem} onPress={toggleTheme}>
-  <Text style={styles.settingText}>{isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}</Text>
-  <Ionicons name="chevron-forward" size={20} color={styles.icon.color} />
-</TouchableOpacity>
+<View style={styles.healthSection}>
+  <Text style={styles.healthItem}>Gender: {healthDetails.gender}</Text>
+  <Text style={styles.healthItem}>Birthday: {healthDetails.birthday}</Text>
+  <Text style={styles.healthItem}>Age: {healthDetails.age}</Text>
+  <Text style={styles.healthItem}>Height: {healthDetails.height} cm</Text>
+  <Text style={styles.healthItem}>Weight: {healthDetails.weight} kg</Text>
+  <Text style={styles.healthItem}>BMI: {healthDetails.bmi}</Text>
+  <Text style={styles.healthItem}>
+  Complications: {(healthDetails.complications || []).length > 0
+    ? healthDetails.complications.join(", ")
+    : "None"}
+</Text>
+
+<Text style={styles.healthItem}>
+  Allergies: {(healthDetails.allergies || []).length > 0
+    ? healthDetails.allergies.join(", ")
+    : "None"}
+</Text>
+
+<View style={styles.sectionHeader}>
+  <Text style={styles.sectionHeaderText}>Calorie Summary</Text>
+</View>
+<View style={styles.healthSection}>
+  <Text style={styles.healthItem}>BMR: {healthDetails.bmr} kcal/day</Text>
+  <Text style={styles.healthItem}>Maintenance (TDEE): {healthDetails.maintenanceCalories} kcal/day</Text>
+  <Text style={styles.healthItem}>Target Calories (based on your goal): {healthDetails.targetCalories} kcal/day</Text>
+</View>
+
+</View>
 
 
-      <TouchableOpacity
-  style={styles.settingItem}
-  onPress={() => navigation.navigate("EditProfile")}
->
-  <Text style={styles.settingText}>Edit Profile</Text>
-  <Ionicons name="chevron-forward" size={20} color={styles.icon.color} />
-</TouchableOpacity>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionHeaderText}>General Settings</Text>
+        </View>
 
-<TouchableOpacity style={styles.settingItem}>
-  <Text style={styles.settingText}>Change Language</Text>
-  <Ionicons name="chevron-forward" size={20} color={styles.icon.color} />
-</TouchableOpacity>
+        <TouchableOpacity style={styles.settingItem} onPress={handleEditProfile}>
+          <Text style={styles.settingText}>Edit Profile</Text>
+          <Ionicons name="chevron-forward" size={20} color={styles.icon.color} />
+        </TouchableOpacity>
 
-      <TouchableOpacity style={styles.settingItem} onPress={handleDeleteAccount}>
-        <Text style={{ color: "red" }}>Delete Account</Text>
-        <Ionicons name="chevron-forward" size={20} color="red" />
-      </TouchableOpacity>
+        <TouchableOpacity style={styles.settingItem} onPress={handleLogout}>
+          <Text style={styles.settingText}>Log Out</Text>
+          <Ionicons name="chevron-forward" size={20} color={styles.icon.color} />
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.settingItem} onPress={handleDeleteAccount}>
+          <Text style={{ color: "red" }}>Delete Account</Text>
+          <Ionicons name="chevron-forward" size={20} color="red" />
+        </TouchableOpacity>
       </ScrollView>
 
-
       {/* Bottom Navigation Bar */}
-                  <View style={styles.bottomBar}>
-              <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate("Home")}>
-                <Home size={24} color={styles.icon.color} />
-                <Text style={styles.navText}>Home</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.navItem} onPress={() => {/* navigate to Goals */}}>
-                <Target size={24} color={styles.icon.color} />
-                <Text style={styles.navText}>Goals</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.navItem} onPress={() => {/* navigate to Meal Plan */}}>
-                <ClipboardList size={24} color={styles.icon.color} />
-                <Text style={styles.navText}>Meal Plan</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate("Profile")}>
-                <User size={24} color={styles.icon.color} />
-                <Text style={styles.navText}>Profile</Text>
-              </TouchableOpacity>
-            </View>
-    
+<View style={styles.bottomBar}>
+  <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate("Home")}>
+    <Feather name="home" size={24} color="#6C63FF" />
+    <Text style={styles.navText}>Home</Text>
+  </TouchableOpacity>
+  <TouchableOpacity style={styles.navItem}>
+    <Feather name="target" size={24} color="#6C63FF" />
+    <Text style={styles.navText}>Goals</Text>
+  </TouchableOpacity>
+  <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate("MealPlan")}>
+    <Feather name="clipboard" size={24} color="#6C63FF" />
+    <Text style={styles.navText}>Meal Plan</Text>
+  </TouchableOpacity>
+  <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate("Profile")}>
+    <Feather name="user" size={24} color="#6C63FF" />
+    <Text style={styles.navText}>Profile</Text>
+  </TouchableOpacity>
+</View>
     </View>
   );
 }
+
+// --- Styles (unchanged except for removing duplicate container key) ---
 const lightStyles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
-  container: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderColor: "#ddd",
-  },
-  headerText: {
-    fontSize: 20,
-    fontWeight: "bold",
-    marginLeft: 10,
-  },
-  profileSection: {
-    alignItems: "center",
-    marginTop: 20,
-    marginBottom: 10,
-  },
-  imageWrapper: {
-    position: "relative",
-  },
-  profileImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: "#ccc",
-  },
-  cameraIcon: {
-    position: "absolute",
-    right: 0,
-    bottom: 0,
-    backgroundColor: "#000",
-    borderRadius: 20,
-    padding: 4,
-  },
-  username: {
-    marginTop: 12,
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  email: {
-    color: "gray",
-    fontSize: 14,
-  },
-  sectionHeader: {
-    paddingHorizontal: 20,
-    paddingTop: 30,
-    paddingBottom: 10,
-  },
-  sectionHeaderText: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#333",
-  },
-  settingItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderColor: "#eee",
-  },
-  bottomBar: {
-    height: 70,
-    backgroundColor: "#f8f8f8",
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-    borderTopWidth: 1,
-    borderTopColor: "#ddd",
-  },
-  navItem: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  navText: {
-    fontSize: 12,
-    marginTop: 4,
-    color: "#333",
-  },
-  outerContainer: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
-  
-  scrollContent: {
-    paddingBottom: 90, // Ensures content doesn't get hidden behind the bottom bar
-  },
-  settingText: {
-    color: "#000",
-  },
-  icon: {
-    color: "#000",
-  },
-  // other styles...
+  container: { flex: 1, backgroundColor: "#fff" },
+  profileSection: { alignItems: "center", marginTop: 20, marginBottom: 10 },
+  profileImage: { width: 100, height: 100, borderRadius: 50, backgroundColor: "#ccc" },
+  username: { marginTop: 12, fontSize: 18, fontWeight: "bold" },
+  email: { color: "gray", fontSize: 14 },
+  sectionHeader: { paddingHorizontal: 20, paddingTop: 30, paddingBottom: 10 },
+  sectionHeaderText: { fontSize: 16, fontWeight: "bold", color: "#333" },
+  settingItem: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 16, paddingHorizontal: 20, borderBottomWidth: 1, borderColor: "#eee" },
+  bottomBar: { height: 70, backgroundColor: "#f8f8f8", flexDirection: "row", justifyContent: "space-around", alignItems: "center", borderTopWidth: 1, borderTopColor: "#ddd" },
+  navItem: { alignItems: "center", justifyContent: "center" },
+  navText: { fontSize: 12, marginTop: 4, color: "#333" },
+  outerContainer: { flex: 1, backgroundColor: "#fff" },
+  scrollContent: { paddingBottom: 90 },
+  settingText: { color: "#000" },
+  icon: { color: "#000" },
+  healthSection: { paddingHorizontal: 20, paddingVertical: 10 },
+healthItem: { fontSize: 14, marginBottom: 6, color: "#333" },
+
 });
 
 const darkStyles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#121212",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderColor: "#888", // lighter for dark mode
-  },
-  headerText: {
-    fontSize: 20,
-    fontWeight: "bold",
-    marginLeft: 10,
-    color: "#fff",
-  },
-  profileSection: {
-    alignItems: "center",
-    marginTop: 20,
-    marginBottom: 10,
-  },
-  imageWrapper: {
-    position: "relative",
-  },
-  profileImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: "#444",
-  },
-  cameraIcon: {
-    position: "absolute",
-    right: 0,
-    bottom: 0,
-    backgroundColor: "#000",
-    borderRadius: 20,
-    padding: 4,
-  },
-  username: {
-    marginTop: 12,
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#fff",
-  },
-  email: {
-    color: "#bbb",
-    fontSize: 14,
-  },
-  sectionHeader: {
-    paddingHorizontal: 20,
-    paddingTop: 30,
-    paddingBottom: 10,
-  },
-  sectionHeaderText: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#ddd",
-  },
-  settingItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderColor: "#555",
-  },
-  bottomBar: {
-    height: 70,
-    backgroundColor: "#1e1e1e",
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-    borderTopWidth: 1,
-    borderTopColor: "#444",
-  },
-  navItem: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  navText: {
-    fontSize: 12,
-    marginTop: 4,
-    color: "#fff",
-  },
-  outerContainer: {
-    flex: 1,
-    backgroundColor: "#121212",
-  },
-  scrollContent: {
-    paddingBottom: 90,
-  },
-  settingText: {
-    color: "#fff",
-  },
-  icon: {
-    color: "#fff",
-  },
+  ...lightStyles,
+  container: { flex: 1, backgroundColor: "#121212" },
+  sectionHeaderText: { fontSize: 16, fontWeight: "bold", color: "#ddd" },
+  settingText: { color: "#fff" },
+  icon: { color: "#fff" },
+  navText: { fontSize: 12, marginTop: 4, color: "#fff" },
 });
-
-
-/*const styles = StyleSheet.create({
-  
-});*/
