@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Image, TouchableOpacity, TextInput, ScrollView } from "react-native";
 import { getAuth } from "firebase/auth";
-import { getFirestore, doc, getDoc } from "firebase/firestore";
+import { getFirestore, doc, getDoc, updateDoc } from "firebase/firestore";
 import { Feather } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
@@ -32,6 +32,8 @@ const [weight, setWeight] = useState(null);
 const [height, setHeight] = useState(null);
 const [bmi, setBmi] = useState(null);
 const [mealDaysCount, setMealDaysCount] = useState(0);
+  const [feedbacks, setFeedbacks] = useState([]);
+
 
 
   //const totalCalories = 900; // This will come from Firestore later
@@ -66,6 +68,9 @@ const [mealDaysCount, setMealDaysCount] = useState(0);
       // Fetch today's meal calories
       const date = new Date().toISOString().split("T")[0];
       const mealDocRef = doc(db, "users", user.uid, "meals", date);
+
+
+
       const unsubscribe = onSnapshot(mealDocRef, (docSnap) => {
         if (docSnap.exists()) {
           const mealsData = docSnap.data();
@@ -78,6 +83,32 @@ const [mealDaysCount, setMealDaysCount] = useState(0);
           setTotalCalories(0);
         }
       });
+
+const fetchFeedbacks = async () => {
+  const user = auth.currentUser;
+  if (!user) return;
+
+  const feedbackRef = collection(db, "users", user.uid, "feedbacks");
+  const snapshot = await getDocs(feedbackRef);
+  const data = snapshot.docs
+    .map(doc => ({ id: doc.id, ...doc.data() }))
+    .sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
+
+  setFeedbacks(data.slice(0, 3)); // Only show latest 3
+};
+
+const unsub = onSnapshot(doc(db, "users", user.uid), async (docSnap) => {
+  const data = docSnap.data();
+  if (data?.hasNewFeedback) {
+    Alert.alert("📝 New Feedback", "You have new feedback from an admin!");
+
+    await updateDoc(docSnap.ref, { hasNewFeedback: false });
+    fetchFeedbacks(); // refresh after feedback
+  }
+});
+
+fetchFeedbacks(); // run on mount too
+
       const fetchCaloriesHistory = async () => {
     const user = auth.currentUser;
     if (!user) return;
@@ -154,7 +185,7 @@ fetchLoggedMealDays();
 
   
 
-      return () => unsubscribe();
+      return () => unsubscribe(); unsub();
     }, [])
   );
 
@@ -234,6 +265,22 @@ fetchLoggedMealDays();
 </View>
 
         </View>
+
+        {feedbacks.length > 0 && (
+  <View style={styles.feedbackContainer}>
+    <Text style={styles.feedbackHeader}>📋 Admin Feedback</Text>
+    {feedbacks.map((fb) => (
+      <View key={fb.id} style={styles.feedbackCard}>
+        <Text style={styles.feedbackDate}>
+          {fb.createdAt?.toDate().toLocaleDateString() ?? 'Unknown Date'}
+        </Text>
+        <Text style={styles.feedbackMessage}>{fb.message}</Text>
+        <Text style={styles.feedbackFrom}>👤 {fb.givenBy ?? 'Admin'}</Text>
+      </View>
+    ))}
+  </View>
+)}
+
 
         <TouchableOpacity
           style={styles.addMealButton}
@@ -335,6 +382,40 @@ healthLabel: {
   color: '#666',
   marginTop: 4,
   textAlign: 'center',
+},
+feedbackContainer: {
+  marginTop: 16,
+  backgroundColor: '#fff',
+  borderRadius: 12,
+  padding: 16,
+  elevation: 2,
+},
+feedbackHeader: {
+  fontSize: 16,
+  fontWeight: 'bold',
+  color: '#333',
+  marginBottom: 10,
+},
+feedbackCard: {
+  backgroundColor: '#f4f4f4',
+  borderRadius: 10,
+  padding: 12,
+  marginBottom: 10,
+},
+feedbackDate: {
+  fontSize: 12,
+  color: '#888',
+  marginBottom: 4,
+},
+feedbackMessage: {
+  fontSize: 14,
+  color: '#333',
+  marginBottom: 6,
+},
+feedbackFrom: {
+  fontSize: 12,
+  color: '#666',
+  textAlign: 'right',
 },
 
 

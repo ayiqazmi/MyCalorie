@@ -87,12 +87,55 @@ useEffect(() => {
     }
   };
 
-  const handleDeleteAccount = () => {
-    Alert.alert("Delete Account", "Are you sure you want to delete your account?", [
+const handleDeleteAccount = () => {
+  Alert.alert(
+    "Delete Account",
+    "Are you sure you want to delete your account? This action is irreversible.",
+    [
       { text: "Cancel", style: "cancel" },
-      { text: "Delete", onPress: () => console.log("Account deleted") },
-    ]);
-  };
+      {
+        text: "Delete",
+        onPress: async () => {
+          try {
+            const user = auth.currentUser;
+            if (!user) {
+              Alert.alert("Error", "No user is currently signed in.");
+              return;
+            }
+
+            // 1. Delete Firestore user document
+            const userDocRef = doc(db, "users", user.uid);
+            await getDoc(userDocRef).then((docSnap) => {
+              if (docSnap.exists()) {
+                return deleteDoc(userDocRef);
+              }
+            });
+
+            // 2. Delete Firebase Auth user (requires recent login)
+            await user.delete();
+
+            Alert.alert("Account Deleted", "Your account has been deleted.");
+            navigation.reset({ index: 0, routes: [{ name: "Login" }] });
+
+          } catch (error) {
+            if (error.code === "auth/requires-recent-login") {
+              Alert.alert(
+                "Reauthentication Required",
+                "Please log in again before deleting your account."
+              );
+              navigation.navigate("Reauthenticate", { onSuccess: "DeleteAccount" });
+            } else {
+              console.error("Delete account error:", error);
+              Alert.alert("Error", "Failed to delete account.");
+            }
+          }
+        },
+        style: "destructive",
+      },
+    ]
+  );
+};
+
 
   return (
     <View style={styles.outerContainer}>
