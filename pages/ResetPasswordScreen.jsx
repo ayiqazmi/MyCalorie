@@ -1,8 +1,13 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, Button, Alert, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState, useLayoutEffect } from 'react';
+import {
+  View, Text, TextInput, StyleSheet, Alert, TouchableOpacity, Image, ImageBackground, Dimensions
+} from 'react-native';
 import { verifyPasswordResetCode, confirmPasswordReset } from 'firebase/auth';
 import { auth } from '../config/firebase-config';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { Feather } from '@expo/vector-icons';
+
+const { width } = Dimensions.get('window');
 
 export default function ResetPasswordScreen() {
   const navigation = useNavigation();
@@ -13,6 +18,10 @@ export default function ResetPasswordScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({ title: 'Reset Password' });
+  }, [navigation]);
 
   const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])(?=.*[A-Z]).{8,}$/;
 
@@ -47,43 +56,120 @@ export default function ResetPasswordScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Reset Password</Text>
+    <ImageBackground
+      source={require('../assets/background.png')}
+      style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
+      resizeMode="cover"
+    >
+      <View style={styles.card}>
+        <Image source={require('../assets/MyCalorie.png')} style={styles.logo} />
+        <Text style={styles.brandText}>MyCalorie</Text>
+        <Text style={styles.title}>Reset Password</Text>
 
-      <TextInput
-        placeholder="New Password"
-        secureTextEntry={!showPassword}
-        style={styles.input}
-        value={newPassword}
-        onChangeText={setNewPassword}
-      />
-      <TouchableOpacity onPress={() => setShowPassword((prev) => !prev)}>
-        <Text style={styles.toggleText}>
-          {showPassword ? 'Hide Password' : 'Show Password'}
-        </Text>
-      </TouchableOpacity>
+        {/* New Password Input */}
+        <View style={styles.inputBox}>
+          <View style={styles.passwordRow}>
+            <TextInput
+              placeholder="New Password"
+              placeholderTextColor="#fff"
+              value={newPassword}
+              onChangeText={setNewPassword}
+              secureTextEntry={!showPassword}
+              style={[styles.input, { flex: 1 }]}
+            />
+            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+              <Feather
+                name={showPassword ? 'eye-off' : 'eye'}
+                size={20}
+                color="#fff"
+                style={{ paddingHorizontal: 8 }}
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
 
-      <TextInput
-        placeholder="Confirm New Password"
-        secureTextEntry={!showConfirmPassword}
-        style={styles.input}
-        value={confirmPassword}
-        onChangeText={setConfirmPassword}
-      />
-      <TouchableOpacity onPress={() => setShowConfirmPassword((prev) => !prev)}>
-        <Text style={styles.toggleText}>
-          {showConfirmPassword ? 'Hide Confirm Password' : 'Show Confirm Password'}
-        </Text>
-      </TouchableOpacity>
+        {/* Confirm Password Input */}
+        <View style={styles.inputBox}>
+          <View style={styles.passwordRow}>
+            <TextInput
+              placeholder="Confirm Password"
+              placeholderTextColor="#fff"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              secureTextEntry={!showConfirmPassword}
+              style={[styles.input, { flex: 1 }]}
+            />
+            <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
+              <Feather
+                name={showConfirmPassword ? 'eye-off' : 'eye'}
+                size={20}
+                color="#fff"
+                style={{ paddingHorizontal: 8 }}
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
 
-      <Button title="Reset Password" onPress={handleResetPassword} />
-    </View>
+        <TouchableOpacity onPress={handleResetPassword} style={styles.resetButton}>
+          <Text style={styles.resetText}>RESET PASSWORD</Text>
+        </TouchableOpacity>
+      </View>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, justifyContent: 'center', backgroundColor: '#fff' },
-  title: { fontSize: 24, marginBottom: 20, textAlign: 'center', fontWeight: 'bold' },
-  input: { borderWidth: 1, borderColor: '#ccc', padding: 12, borderRadius: 6, marginBottom: 8 },
-  toggleText: { color: '#007BFF', textAlign: 'right', marginBottom: 12 },
+  card: {
+    backgroundColor: 'white',
+    width: width * 0.85,
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+    elevation: 8,
+  },
+  logo: {
+    width: 80,
+    height: 80,
+    resizeMode: 'contain',
+    marginBottom: 4,
+  },
+  brandText: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#7C3AED',
+    marginBottom: 12,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#6A1B9A',
+    marginBottom: 16,
+  },
+  inputBox: {
+    width: '100%',
+    backgroundColor: '#B388FF',
+    borderRadius: 30,
+    paddingHorizontal: 16,
+    marginVertical: 8,
+  },
+  input: {
+    height: 50,
+    color: '#fff',
+  },
+  passwordRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  resetButton: {
+    backgroundColor: '#8E24AA',
+    paddingVertical: 14,
+    paddingHorizontal: 60,
+    borderRadius: 30,
+    marginTop: 20,
+  },
+  resetText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
 });

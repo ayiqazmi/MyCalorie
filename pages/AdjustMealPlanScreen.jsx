@@ -8,6 +8,9 @@ import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../config/firebase-config';
 import { format } from 'date-fns';
 import { askMealAI } from '../utils/askMealAI';
+import { ImageBackground } from 'react-native';
+import background from '../assets/background.png'; // ✅ Add your background
+
 
 export default function AdjustMealPlanScreen({ navigation, route }) {
   const { onMealAdded } = route.params || {};
@@ -73,35 +76,50 @@ const handleSaveToPlan = async () => {
 
 
 
-  return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>🎯 Ask AI to Adjust Meal Plan</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="e.g. breakfast under 100 calories made of fruits"
-        value={prompt}
-        onChangeText={setPrompt}
-        multiline
-      />
-      <Button title="Ask AI" onPress={handleAskAI} disabled={!prompt.trim()} />
-      {loading && <ActivityIndicator style={{ marginTop: 20 }} size="large" color="#6C63FF" />}
+return (
+  <ImageBackground source={background} style={{ flex: 1 }} resizeMode="cover">
+    <View style={styles.overlay}>
+      <ScrollView contentContainerStyle={styles.container}>
+        <Text style={styles.title}>🎯 Ask AI to Adjust Meal Plan</Text>
 
-      {results.length > 0 && (
-        <Text style={styles.resultTitle}>🍽️ Results:</Text>
-      )}
+        <TextInput
+          style={styles.input}
+          placeholder="e.g. breakfast under 100 calories made of fruits"
+          placeholderTextColor="#999"
+          value={prompt}
+          onChangeText={setPrompt}
+          multiline
+        />
 
-      {results.map((meal, index) => (
-        <TouchableOpacity key={index} style={styles.card} onPress={() => handleMealPress(meal)}>
-          <Text style={styles.name}>{meal.name}</Text>
-          <Text>Calories: {meal.calories}</Text>
-          <Text>Protein: {meal.protein}g</Text>
-          <Text>Carbs: {meal.carbs}g</Text>
-          <Text>Fat: {meal.fat}g</Text>
+        <TouchableOpacity
+          style={[styles.askButton, !prompt.trim() && styles.disabledButton]}
+          onPress={handleAskAI}
+          disabled={!prompt.trim()}
+        >
+          <Text style={styles.askText}>Ask AI</Text>
         </TouchableOpacity>
-      ))}
+
+        {loading && (
+          <ActivityIndicator style={{ marginTop: 20 }} size="large" color="#6C63FF" />
+        )}
+
+        {results.length > 0 && (
+          <Text style={styles.resultTitle}>🍽️ Results:</Text>
+        )}
+
+        {results.map((meal, index) => (
+          <TouchableOpacity key={index} style={styles.card} onPress={() => handleMealPress(meal)}>
+            <Text style={styles.name}>{meal.name}</Text>
+            <Text style={styles.nutrient}>Calories: {meal.calories}</Text>
+            <Text style={styles.nutrient}>Protein: {meal.protein}g</Text>
+            <Text style={styles.nutrient}>Carbs: {meal.carbs}g</Text>
+            <Text style={styles.nutrient}>Fat: {meal.fat}g</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
 
       {/* Modal */}
-      <Modal visible={modalVisible} animationType="slide" transparent={true}>
+      <Modal visible={modalVisible} animationType="slide" transparent>
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Assign "{selectedMeal?.name}"</Text>
@@ -115,7 +133,10 @@ const handleSaveToPlan = async () => {
             </Picker>
 
             <Text style={styles.label}>Select Date:</Text>
-            <Button title={format(selectedDate, 'yyyy-MM-dd')} onPress={() => setShowDatePicker(true)} />
+            <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.dateBtn}>
+              <Text style={styles.dateText}>{format(selectedDate, 'yyyy-MM-dd')}</Text>
+            </TouchableOpacity>
+
             {showDatePicker && (
               <DateTimePicker
                 value={selectedDate}
@@ -129,40 +150,144 @@ const handleSaveToPlan = async () => {
             )}
 
             <View style={styles.modalButtons}>
-              <Button title="Cancel" onPress={() => setModalVisible(false)} color="#aaa" />
-              <Button title="Save" onPress={handleSaveToPlan} />
+              <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.cancelBtn}>
+                <Text style={styles.cancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleSaveToPlan} style={styles.saveBtn}>
+                <Text style={styles.saveText}>Save</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
-    </ScrollView>
-  );
+    </View>
+  </ImageBackground>
+);
+
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 16 },
-  title: { fontSize: 20, fontWeight: 'bold', marginBottom: 12 },
-  input: {
-    borderColor: '#ccc', borderWidth: 1, borderRadius: 8,
-    padding: 12, marginBottom: 12, textAlignVertical: 'top', minHeight: 60
+  container: {
+    padding: 20,
+    paddingBottom: 100,
   },
-  resultTitle: { fontSize: 16, fontWeight: 'bold', marginTop: 20, marginBottom: 10 },
-  card: { backgroundColor: '#f2f2f2', padding: 12, borderRadius: 8, marginBottom: 10 },
-  name: { fontWeight: 'bold', fontSize: 16, marginBottom: 4 },
-
+  title: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#6C63FF',
+    marginBottom: 16,
+  },
+  input: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 12,
+    fontSize: 14,
+    borderColor: '#ccc',
+    borderWidth: 1,
+    minHeight: 60,
+    marginBottom: 12,
+    textAlignVertical: 'top',
+  },
+  askButton: {
+    backgroundColor: '#6C63FF',
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  disabledButton: {
+    backgroundColor: '#aaa',
+  },
+  askText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  resultTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 24,
+    marginBottom: 12,
+    color: '#333',
+  },
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  name: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+    color: '#333',
+  },
+  nutrient: {
+    fontSize: 13,
+    color: '#555',
+  },
   modalContainer: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center'
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: 'white', padding: 20, borderRadius: 12, width: '90%'
+    backgroundColor: 'white',
+    padding: 20,
+    borderRadius: 16,
+    width: '90%',
   },
   modalTitle: {
-    fontSize: 18, fontWeight: 'bold', marginBottom: 10
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 14,
+    color: '#6C63FF',
   },
   label: {
-    marginTop: 10, marginBottom: 5, fontWeight: '600'
+    marginTop: 12,
+    marginBottom: 6,
+    fontWeight: '600',
+    color: '#444',
+  },
+  dateBtn: {
+    backgroundColor: '#eee',
+    padding: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  dateText: {
+    fontSize: 14,
+    color: '#333',
   },
   modalButtons: {
-    marginTop: 20, flexDirection: 'row', justifyContent: 'space-between'
-  }
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 24,
+  },
+  cancelBtn: {
+    backgroundColor: '#ccc',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  cancelText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  saveBtn: {
+    backgroundColor: '#6C63FF',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  saveText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
 });
+

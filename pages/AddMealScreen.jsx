@@ -4,6 +4,9 @@ import { getDocs, collection, getFirestore, doc, getDoc, setDoc, updateDoc, arra
 import { auth, db } from "../config/firebase-config.js";
 import { Ionicons } from "@expo/vector-icons";
 import { searchFatSecretFoods } from "../utils/fatsecret-search";
+import { ImageBackground } from "react-native";
+import background from "../assets/background.png"; // ✅ Make sure this exists
+
 
 const API_KEY = "wDuhwYZWD0jLgS1YfSEBPrEgjonLtLYMHDcT0Dk1";
 
@@ -197,7 +200,8 @@ const prepareFoodData = (food) => {
   };
 
   return (
-    <View style={styles.container}>
+    <ImageBackground source={background} style={{ flex: 1 }} resizeMode="cover">
+    <ScrollView contentContainerStyle={styles.overlay}>
       <Text style={styles.header}>Add Meal</Text>
 
       <TextInput
@@ -247,49 +251,56 @@ const prepareFoodData = (food) => {
             </TouchableOpacity>
           );
         }}
-        ListFooterComponent={
-          <View style={styles.summary}>
-            <Text style={styles.summaryHeader}>{mealType.toUpperCase()} - Today's Meals</Text>
-            {mealsToday[mealType]?.items?.length > 0 ? (
-              mealsToday[mealType].items.map((item, index) => (
-                <View key={index} style={styles.mealItem}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontWeight: "bold" }}>{item.name}</Text>
-                    <Text>Calories: {item.calories} kcal</Text>
-                    <Text>Protein: {item.protein} g</Text>
-                    <Text>Carbs: {item.carbs} g</Text>
-                    <Text>Fats: {item.fats} g</Text>
-                    <Text>Vitamin C: {item.vitaminC} mg</Text>
-                    <Text>Calcium: {item.calcium} mg</Text>
-                    <Text>Iron: {item.iron} mg</Text>
-                    <Text>Potassium: {item.potassium} mg</Text>
-                    <Text>Fiber: {item.fiber} g</Text>
-                    <Text>Sugar: {item.sugar} g</Text>
-                  </View>
-                  <TouchableOpacity onPress={() => handleDeleteMeal(item, mealType, index)} style={{ paddingLeft: 10 }}>
-                    <Ionicons name="trash-outline" size={24} color="red" />
-                  </TouchableOpacity>
-                </View>
-              ))
-            ) : (
-              <Text>No meals added for {mealType} yet.</Text>
-            )}
-
-            <View style={styles.totalsContainer}>
-              <Text style={styles.summaryHeader}>Today's Total Intake</Text>
-              <Text>Calories: {totals.calories.toFixed(0)} kcal</Text>
-              <Text>Protein: {totals.protein.toFixed(1)} g</Text>
-              <Text>Carbs: {totals.carbs.toFixed(1)} g</Text>
-              <Text>Fats: {totals.fats.toFixed(1)} g</Text>
-              <Text style={styles.microsText}>
-                Vitamin C: {totals.vitaminC.toFixed(1)} mg  •  Calcium: {totals.calcium.toFixed(1)} mg  •  Iron: {totals.iron.toFixed(1)} mg
-              </Text>
-              <Text style={styles.microsText}>
-                Potassium: {totals.potassium.toFixed(1)} mg  •  Fiber: {totals.fiber.toFixed(1)} g  •  Sugar: {totals.sugar.toFixed(1)} g
-              </Text>
+       ListFooterComponent={
+  <View style={{ marginTop: 20 }}>
+    
+    {/* Card 1: Meals Added for Selected Meal Type */}
+    <View style={styles.footerCard}>
+      <Text style={styles.footerTitle}>{mealType.toUpperCase()} – Today's Meals</Text>
+      {mealsToday[mealType]?.items?.length > 0 ? (
+        mealsToday[mealType].items.map((item, index) => (
+          <View key={index} style={styles.mealItem}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.mealName}>{item.name}</Text>
+              <Text style={styles.nutrientText}>Calories: {item.calories} kcal</Text>
+              <Text style={styles.nutrientText}>Protein: {item.protein} g</Text>
+              <Text style={styles.nutrientText}>Carbs: {item.carbs} g</Text>
+              <Text style={styles.nutrientText}>Fats: {item.fats} g</Text>
+              <Text style={styles.nutrientText}>Vitamin C: {item.vitaminC} mg</Text>
+              <Text style={styles.nutrientText}>Calcium: {item.calcium} mg</Text>
+              <Text style={styles.nutrientText}>Iron: {item.iron} mg</Text>
+              <Text style={styles.nutrientText}>Potassium: {item.potassium} mg</Text>
+              <Text style={styles.nutrientText}>Fiber: {item.fiber} g</Text>
+              <Text style={styles.nutrientText}>Sugar: {item.sugar} g</Text>
             </View>
+            <TouchableOpacity onPress={() => handleDeleteMeal(item, mealType, index)} style={{ paddingLeft: 10 }}>
+              <Ionicons name="trash-outline" size={24} color="red" />
+            </TouchableOpacity>
           </View>
-        }
+        ))
+      ) : (
+        <Text style={styles.nutrientText}>No meals added for {mealType} yet.</Text>
+      )}
+    </View>
+
+    {/* Card 2: Daily Total Nutrients */}
+    <View style={styles.footerCard}>
+      <Text style={styles.footerTitle}>Today's Total Intake</Text>
+      <Text style={styles.nutrientText}>Calories: {totals.calories.toFixed(0)} kcal</Text>
+      <Text style={styles.nutrientText}>Protein: {totals.protein.toFixed(1)} g</Text>
+      <Text style={styles.nutrientText}>Carbs: {totals.carbs.toFixed(1)} g</Text>
+      <Text style={styles.nutrientText}>Fats: {totals.fats.toFixed(1)} g</Text>
+      <Text style={styles.microsText}>
+        Vitamin C: {totals.vitaminC.toFixed(1)} mg  •  Calcium: {totals.calcium.toFixed(1)} mg  •  Iron: {totals.iron.toFixed(1)} mg
+      </Text>
+      <Text style={styles.microsText}>
+        Potassium: {totals.potassium.toFixed(1)} mg  •  Fiber: {totals.fiber.toFixed(1)} g  •  Sugar: {totals.sugar.toFixed(1)} g
+      </Text>
+    </View>
+    
+  </View>
+}
+
       />
 
       <Modal visible={showModal} transparent animationType="slide">
@@ -343,34 +354,163 @@ const prepareFoodData = (food) => {
 </View>
 </Modal>
 
-    </View>
+    </ScrollView>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20 },
-  header: { fontSize: 24, fontWeight: "bold", marginBottom: 10 },
-  input: { borderWidth: 1, borderColor: "#ccc", padding: 10, borderRadius: 5, marginBottom: 10 },
-  button: { backgroundColor: "#6C63FF", padding: 12, borderRadius: 5, alignItems: "center", marginBottom: 10 },
-  buttonText: { color: "#fff", fontWeight: "bold" },
-  mealTypeContainer: { flexDirection: "row", justifyContent: "space-around", marginVertical: 10 },
-  mealTypeButton: { backgroundColor: "#ccc", padding: 10, borderRadius: 5 },
-  selectedMealType: { backgroundColor: "#6C63FF" },
-  resultItem: { padding: 10, borderBottomWidth: 1, borderColor: "#ddd", flexDirection: "row", justifyContent: "space-between" },
-  summary: { marginTop: 20 },
-  summaryHeader: { fontSize: 18, fontWeight: "bold", marginBottom: 10 },
-  mealItem: { padding: 10, marginBottom: 10, borderWidth: 1, borderColor: "#ddd", borderRadius: 5, flexDirection: "row", justifyContent: "space-between" },
-  totalsContainer: { marginTop: 20 },
-  microsText: { fontSize: 12, color: "#555", marginTop: 4 },
-  modalBackground: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center" },
-modalContainer: {
-  backgroundColor: "white",
-  padding: 20,
-  borderRadius: 10,
-  width: "90%",
-  alignSelf: "center"
+  overlay: {
+    padding: 20,
+    paddingBottom: 120,
+    //backgroundColor: 'rgba(255,255,255,0.95)',
+  },
+  header: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#6C63FF",
+    marginBottom: 14,
+  },
+  input: {
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#ccc",
+    marginBottom: 10,
+  },
+  button: {
+    backgroundColor: "#6C63FF",
+    padding: 12,
+    borderRadius: 10,
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  buttonText: {
+    color: "#fff",
+    fontWeight: "600",
+  },
+  mealTypeContainer: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    marginVertical: 12,
+  },
+  mealTypeButton: {
+    backgroundColor: "#ccc",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  selectedMealType: {
+    backgroundColor: "#6C63FF",
+  },
+  resultItem: {
+    backgroundColor: "#fff",
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 10,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  summary: {
+    marginTop: 20,
+  },
+  summaryHeader: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#6C63FF",
+    marginBottom: 10,
+  },
+  mealItem: {
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 10,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  totalsContainer: {
+    marginTop: 16,
+    backgroundColor: "#f9f9ff",
+    padding: 12,
+    borderRadius: 10,
+  },
+  microsText: {
+    fontSize: 12,
+    color: "#555",
+    marginTop: 4,
+  },
+  modalBackground: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContainer: {
+    backgroundColor: "white",
+    padding: 20,
+    borderRadius: 14,
+    width: "90%",
+    alignSelf: "center",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#6C63FF",
+    marginBottom: 14,
+  },
+  modalButtons: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 20,
+  },
+  modalButton: {
+    backgroundColor: "#6C63FF",
+    padding: 12,
+    borderRadius: 8,
+    flex: 1,
+    marginHorizontal: 5,
+    alignItems: "center",
+  },
+  footerCard: {
+  backgroundColor: "#fff",
+  borderRadius: 16,
+  padding: 16,
+  marginBottom: 20,
+  shadowColor: "#000",
+  shadowOpacity: 0.08,
+  shadowOffset: { width: 0, height: 2 },
+  shadowRadius: 4,
+  elevation: 2,
 },
-  modalTitle: { fontSize: 18, fontWeight: "bold", marginBottom: 10 },
-  modalButtons: { flexDirection: "row", justifyContent: "space-between", marginTop: 20 },
-  modalButton: { backgroundColor: "#6C63FF", padding: 10, borderRadius: 5, flex: 1, marginHorizontal: 5, alignItems: "center" },
+footerTitle: {
+  fontSize: 16,
+  fontWeight: "600",
+  color: "#6C63FF",
+  marginBottom: 10,
+},
+mealName: {
+  fontWeight: "bold",
+  fontSize: 14,
+  marginBottom: 4,
+  color: "#333",
+},
+nutrientText: {
+  fontSize: 13,
+  color: "#444",
+  marginBottom: 2,
+},
+
 });

@@ -15,8 +15,9 @@ export async function getUSDAFoodsBasedOnGoal(healthGoal) {
       "baked sweet potato", "fruit salad", "chicken lettuce wrap", "tofu stir fry"
     ],
     maintain: [
-      "omelette", "chicken pasta", "quinoa salad", "grilled salmon", "banana pancake",
-      "chicken burrito", "cooked spinach with tofu", "egg fried rice"
+      "omelette", "chicken pasta", "quinoa salad", "grilled salmon",
+      "banana pancake", "chicken burrito", "cooked spinach", "egg fried rice",
+      "grilled vegetables", "miso soup", "protein smoothie", "tofu scramble"
     ]
   };
 
@@ -26,7 +27,7 @@ export async function getUSDAFoodsBasedOnGoal(healthGoal) {
     const allResults = await Promise.all(
       searchTerms.map(async term => {
         try {
-          const results = await fetchUSDAFoods(term);
+          const results = await fetchUSDAFoods(term, { useCache: false }); // 🔥 force fresh data
           console.log(`[USDA] "${term}" → ${results.length} foods`);
           return results;
         } catch (err) {
@@ -36,12 +37,13 @@ export async function getUSDAFoodsBasedOnGoal(healthGoal) {
       })
     );
 
-    return allResults.flat();
+    return allResults.flat(); // flatten the array of arrays
   } catch (err) {
     console.error('[getUSDAFoodsBasedOnGoal] Error:', err.message);
     return [];
   }
 }
+
 
 
 

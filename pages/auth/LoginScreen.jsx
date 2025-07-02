@@ -18,24 +18,22 @@ export default function LoginScreen() {
 const [isLockedOut, setIsLockedOut] = useState(false);
 const [lockoutTimeLeft, setLockoutTimeLeft] = useState(0);
 const [serverLockedOut, setServerLockedOut] = useState(false);
+const [lockoutUntil, setLockoutUntil] = useState(null);
 
 
 useEffect(() => {
-  if (isLockedOut && lockoutTimeLeft > 0) {
+  if (serverLockedOut && lockoutUntil) {
     const interval = setInterval(() => {
-      setLockoutTimeLeft((prev) => {
-        if (prev === 1) {
-          clearInterval(interval);
-          setIsLockedOut(false);
-          //setFailedAttempts(0);
-          return 0;
-        }
-        return prev - 1;
-      });
+      if (Date.now() >= lockoutUntil) {
+        setServerLockedOut(false);
+        setLockoutUntil(null);
+        clearInterval(interval);
+      }
     }, 1000);
     return () => clearInterval(interval);
   }
-}, [isLockedOut, lockoutTimeLeft]);
+}, [serverLockedOut, lockoutUntil]);
+
 
 
   const handleLogin = async () => {
@@ -115,7 +113,8 @@ useEffect(() => {
       Alert.alert('Login Failed', 'Incorrect username or password.');
     }
 } else if (error.code === 'auth/too-many-requests') {
-  setServerLockedOut(true); // ⬅️ add this
+  setServerLockedOut(true);
+  setLockoutUntil(Date.now() + 5 * 60 * 1000); // lock for 5 mins
 
   Alert.alert(
     'Account Temporarily Locked',
@@ -135,15 +134,12 @@ useEffect(() => {
     ]
   );
 }
+
  else {
   Alert.alert('Login Error', 'Something went wrong. Please try again later.');
 }
 
 }
-
-
-
-
   };
 
   const handleForgotPassword = async () => {

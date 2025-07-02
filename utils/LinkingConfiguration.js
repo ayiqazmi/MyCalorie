@@ -1,4 +1,3 @@
-// utils/LinkingConfiguration.js
 export default {
   prefixes: ['mycalorie://'],
   config: {
@@ -10,7 +9,6 @@ export default {
           mode: (mode) => mode,
         },
       },
-      // No need to define VerifyEmail screen if you're not using it
     },
   },
 };

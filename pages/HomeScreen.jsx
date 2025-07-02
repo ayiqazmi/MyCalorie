@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Image, TouchableOpacity, TextInput, ScrollView } from "react-native";
+import { View, Text, StyleSheet, Image, TouchableOpacity, TextInput, ScrollView, ImageBackground } from "react-native";
 import { getAuth } from "firebase/auth";
 import { getFirestore, doc, getDoc, updateDoc } from "firebase/firestore";
 import { Feather } from '@expo/vector-icons';
@@ -9,6 +9,12 @@ import { onSnapshot, collection, getDocs } from "firebase/firestore";
 import { format, subDays } from 'date-fns'; // For date formatting
 import CaloriesIntakeCard from './CaloriesIntakeCard';
 import { useFonts } from 'expo-font';
+import background from '../assets/background.png';
+import logo from '../assets/MyCalorie.png';
+import { LinearGradient } from 'expo-linear-gradient';
+
+
+
 import AppLoading from 'expo-app-loading';
 
 
@@ -190,127 +196,142 @@ fetchLoggedMealDays();
   );
 
 
-  return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-        {/* Top Bar */}
-        <View style={styles.topBar}>
-          <TextInput placeholder="Search here ..." style={styles.searchBox} placeholderTextColor="#999" />
-          <Ionicons name="notifications-outline" size={24} color="#6C63FF" />
-        </View>
-
-        {/* Welcome Banner */}
-        <View style={styles.welcomeBanner}>
-          <Image
-            source={profilePic ? { uri: profilePic } : require("../assets/profile-placeholder.png")}
-            style={styles.profilePic}
-          />
-          <View>
-            <Text style={styles.welcomeText}>Welcome!</Text>
-            <Text style={styles.usernameText}>{username}</Text>
-          </View>
-        </View>
-
-        {/* Health Query Card */}
-        <View style={styles.card}>
-          <View style={styles.cardTextWrapper}>
-            <Text style={styles.cardTitle}>Health Information Query</Text>
-            <Text style={styles.cardSubtitle}>Let us know about any of your allergies or health complications before we generate your meal plan!</Text>
-          </View>
-          <TouchableOpacity style={styles.queryButton} onPress={() => navigation.navigate("HealthDetails")}>
-            <Text style={styles.queryButtonText}>Answer Query</Text>
-          </TouchableOpacity>
-        </View>
-        
-              <TouchableOpacity onPress={() => navigation.navigate('AddMeal')} activeOpacity={0.9}>
-                 <CaloriesIntakeCard 
-                    totalCalories={totalCalories} 
-                    weekData={weekData} 
-                    todayLabel={todayLabel} // ✅ Pass today label
-                  />
-              </TouchableOpacity>
-
-        {/* Stats Cards */}
-        <View style={styles.statsRow}>
-          <View style={styles.statsCard}>
-            <Text style={styles.statsTitle}>Streak</Text>
-            <Text style={styles.statsValue}>{mealDaysCount}</Text>
-
-            <Text style={styles.statsSubtitle}>Days</Text>
-          </View>
-
-          <View style={styles.healthCard}>
-  <View style={styles.healthRow}>
-    <View style={styles.healthItem}>
-      <Text style={styles.healthLabel}>Weight</Text>
-      <Text style={styles.healthValue}>
-        {weight !== null ? `${weight}` : '--'}
-      </Text>
-      <Text style={styles.healthUnit}>kg</Text>
-    </View>
-    <View style={styles.healthItem}>
-      <Text style={styles.healthLabel}>Height</Text>
-      <Text style={styles.healthValue}>
-        {height !== null ? `${height}` : '--'}
-      </Text>
-      <Text style={styles.healthUnit}>cm</Text>
-    </View>
-    <View style={styles.healthItem}>
-      <Text style={styles.healthLabel}>BMI</Text>
-      <Text style={styles.healthValue}>
-  {typeof bmi === 'number' ? bmi.toFixed(1) : '--'}
-</Text>
-    </View>
-  </View>
-</View>
-
-        </View>
-
-        {feedbacks.length > 0 && (
-  <View style={styles.feedbackContainer}>
-    <Text style={styles.feedbackHeader}>📋 Admin Feedback</Text>
-    {feedbacks.map((fb) => (
-      <View key={fb.id} style={styles.feedbackCard}>
-        <Text style={styles.feedbackDate}>
-          {fb.createdAt?.toDate().toLocaleDateString() ?? 'Unknown Date'}
-        </Text>
-        <Text style={styles.feedbackMessage}>{fb.message}</Text>
-        <Text style={styles.feedbackFrom}>👤 {fb.givenBy ?? 'Admin'}</Text>
+return (
+  <ImageBackground
+    source={background}
+    style={{ flex: 1 }}
+    resizeMode="cover"
+  >
+    <ScrollView contentContainerStyle={styles.scrollContainer}>
+      {/* Header Logo */}
+      <View style={styles.logoWrapper}>
+        <Image source={logo} style={styles.logo} />
+        <Text style={styles.brandText}>MyCalorie</Text>
       </View>
-    ))}
-  </View>
-)}
 
+      {/* Top Bar */}
+      <View style={styles.topBar}>
+        <TextInput placeholder="Search here ..." style={styles.searchBox} placeholderTextColor="#999" />
+        <Ionicons name="notifications-outline" size={24} color="#6C63FF" />
+      </View>
 
-        <TouchableOpacity
-          style={styles.addMealButton}
-          onPress={() => navigation.navigate('AddMeal')}>
+      {/* Welcome Banner */}
+      <View style={styles.welcomeBanner}>
+        <Image
+          source={profilePic ? { uri: profilePic } : require("../assets/profile-placeholder.png")}
+          style={styles.profilePic}
+        />
+        <View>
+          <Text style={styles.welcomeText}>Welcome!</Text>
+          <Text style={styles.usernameText}>{username}</Text>
+        </View>
+      </View>
+
+      {/* Health Info Query Card */}
+      <View style={styles.card}>
+        <View style={styles.cardTextWrapper}>
+          <Text style={styles.cardTitle}>Health Information Query</Text>
+          <Text style={styles.cardSubtitle}>
+            Let us know about any of your allergies or health complications before we generate your meal plan!
+          </Text>
+        </View>
+        <TouchableOpacity style={styles.queryButton} onPress={() => navigation.navigate("HealthDetails")}>
+          <Text style={styles.queryButtonText}>Answer Query</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Calories Intake Card */}
+      <TouchableOpacity onPress={() => navigation.navigate('AddMeal')} activeOpacity={0.9}>
+        <CaloriesIntakeCard
+          totalCalories={totalCalories}
+          weekData={weekData}
+          todayLabel={todayLabel}
+        />
+      </TouchableOpacity>
+
+      {/* Stats Row */}
+      <View style={styles.statsRow}>
+        {/* Streak Card */}
+        <View style={styles.statsCard}>
+          <Text style={styles.statsTitle}>Streak</Text>
+          <Text style={styles.statsValue}>{mealDaysCount}</Text>
+          <Text style={styles.statsSubtitle}>Days</Text>
+        </View>
+
+        {/* Health Info Card */}
+        <View style={styles.healthCard}>
+          <View style={styles.healthRow}>
+            <View style={styles.healthItem}>
+              <Text style={styles.healthLabel}>Weight</Text>
+              <Text style={styles.healthValue}>{weight ?? "--"}</Text>
+              <Text style={styles.healthUnit}>kg</Text>
+            </View>
+            <View style={styles.healthItem}>
+              <Text style={styles.healthLabel}>Height</Text>
+              <Text style={styles.healthValue}>{height ?? "--"}</Text>
+              <Text style={styles.healthUnit}>cm</Text>
+            </View>
+            <View style={styles.healthItem}>
+              <Text style={styles.healthLabel}>BMI</Text>
+              <Text style={styles.healthValue}>
+                {typeof bmi === 'number' ? bmi.toFixed(1) : '--'}
+              </Text>
+            </View>
+          </View>
+        </View>
+      </View>
+
+      {/* Feedback Cards */}
+      {feedbacks.length > 0 && (
+        <View style={styles.feedbackContainer}>
+          <Text style={styles.feedbackHeader}>📋 Admin Feedback</Text>
+          {feedbacks.map((fb) => (
+            <View key={fb.id} style={styles.feedbackCard}>
+              <Text style={styles.feedbackDate}>
+                {fb.createdAt?.toDate().toLocaleDateString() ?? 'Unknown Date'}
+              </Text>
+              <Text style={styles.feedbackMessage}>{fb.message}</Text>
+              <Text style={styles.feedbackFrom}>👤 {fb.givenBy ?? 'Admin'}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* Floating Add Meal Button */}
+      <TouchableOpacity
+        style={styles.addMealButton}
+        onPress={() => navigation.navigate('AddMeal')}>
         <Ionicons name="add" size={28} color="white" />
-        </TouchableOpacity>
+      </TouchableOpacity>
+    </ScrollView>
 
-      </ScrollView>
+<LinearGradient
+  colors={['#8E24AA', '#6C63FF']}
+  start={{ x: 0, y: 0 }}
+  end={{ x: 1, y: 0 }}
+  style={styles.bottomBar}
+>
+  <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate("Home")}>
+    <Feather name="home" size={24} color="#fff" />
+    <Text style={styles.navTextWhite}>Home</Text>
+  </TouchableOpacity>
+  <TouchableOpacity style={styles.navItem}>
+    <Feather name="target" size={24} color="#fff" />
+    <Text style={styles.navTextWhite}>Goals</Text>
+  </TouchableOpacity>
+  <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate("MealPlan")}>
+    <Feather name="clipboard" size={24} color="#fff" />
+    <Text style={styles.navTextWhite}>Meal Plan</Text>
+  </TouchableOpacity>
+  <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate("Profile")}>
+    <Feather name="user" size={24} color="#fff" />
+    <Text style={styles.navTextWhite}>Profile</Text>
+  </TouchableOpacity>
+</LinearGradient>
 
-      {/* Bottom Navigation Bar */}
-      <View style={styles.bottomBar}>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate("Home")}>
-          <Feather name="home" size={24} color="#6C63FF" />
-          <Text style={styles.navText}>Home</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <Feather name="target" size={24} color="#6C63FF" />
-          <Text style={styles.navText}>Goals</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate("MealPlan")}>
-          <Feather name="clipboard" size={24} color="#6C63FF" />
-          <Text style={styles.navText}>Meal Plan</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate("Profile")}>
-          <Feather name="user" size={24} color="#6C63FF" />
-          <Text style={styles.navText}>Profile</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
+  </ImageBackground>
+);
+
 }
 
 const styles = StyleSheet.create({
@@ -416,6 +437,40 @@ feedbackFrom: {
   fontSize: 12,
   color: '#666',
   textAlign: 'right',
+},
+logoWrapper: {
+  alignItems: 'center',
+  marginBottom: 16,
+  marginTop: 40,
+},
+logo: {
+  width: 80,
+  height: 80,
+  resizeMode: 'contain',
+  marginBottom: 4,
+},
+brandText: {
+  fontSize: 22,
+  fontWeight: 'bold',
+  color: '#7C3AED',
+},
+bottomBar: {
+  position: "absolute",
+  bottom: 0,
+  left: 0,
+  right: 0,
+  height: 70,
+  flexDirection: "row",
+  justifyContent: "space-around",
+  alignItems: "center",
+  borderTopLeftRadius: 20,
+  borderTopRightRadius: 20,
+  overflow: "hidden",
+},
+navTextWhite: {
+  fontSize: 12,
+  color: "#fff",
+  marginTop: 4,
 },
 
 

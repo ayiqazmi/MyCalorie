@@ -6,6 +6,8 @@ import { useFonts } from 'expo-font';
 import AppLoading from 'expo-app-loading';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { View, ActivityIndicator, Linking, Alert } from 'react-native';
+import * as LinkingExpo from 'expo-linking';
+import { getInitialState } from '@react-navigation/native';
 
 import LoginScreen from './pages/auth/LoginScreen';
 import RegisterScreen from './pages/auth/RegisterScreen';
@@ -47,6 +49,7 @@ export default function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loadingUser, setLoadingUser] = useState(true);
   const [showSplash, setShowSplash] = useState(true);
+const [navIsReady, setNavIsReady] = useState(false);
 
   const [fontsLoaded] = useFonts({
     ...Feather.font,
@@ -91,36 +94,45 @@ export default function App() {
     return () => unsubscribe();
   }, [showSplash]);
 
-  // Deep link handler
-  useEffect(() => {
-    const handleDeepLink = async ({ url }) => {
-      const params = new URLSearchParams(url.split('?')[1]);
-      const oobCode = params.get('oobCode');
-      const mode = params.get('mode');
+useEffect(() => {
+  const handleInitialDeepLink = async () => {
+    const url = await Linking.getInitialURL();
+    if (!url) return;
 
-      if (mode === 'verifyEmail' && oobCode) {
-        try {
-          await applyActionCode(auth, oobCode);
-          console.log('✅ Email verified successfully');
-          Alert.alert('Success', 'Your email has been verified!');
-        } catch (error) {
-          console.error('❌ Verification failed:', error.message);
-          Alert.alert('Error', 'Verification failed or link is invalid.');
-        }
-      }
+    const params = new URLSearchParams(url.split('?')[1]);
+    const oobCode = params.get('oobCode');
+    const mode = params.get('mode');
 
-      if (mode === 'resetPassword' && oobCode) {
+    if (mode === 'resetPassword' && oobCode) {
+      console.log('🔗 Navigating to ResetPasswordScreen with oobCode:', oobCode);
+      if (navIsReady) {
         navigationRef.current?.navigate('ResetPassword', { oobCode });
+      } else {
+        const interval = setInterval(() => {
+          if (navigationRef.current && navIsReady) {
+            navigationRef.current.navigate('ResetPassword', { oobCode });
+            clearInterval(interval);
+          }
+        }, 100);
       }
-    };
+    }
 
-    Linking.getInitialURL().then((url) => {
-      if (url) handleDeepLink({ url });
-    });
+    if (mode === 'verifyEmail' && oobCode) {
+      try {
+        await applyActionCode(auth, oobCode);
+        Alert.alert('✅ Email Verified', 'Your email has been successfully verified.');
+      } catch (error) {
+        Alert.alert('❌ Verification Failed', error.message);
+      }
+    }
+  };
 
-    const subscription = Linking.addEventListener('url', handleDeepLink);
-    return () => subscription.remove();
-  }, []);
+  if (!showSplash && !loadingUser) {
+    handleInitialDeepLink();
+  }
+}, [showSplash, loadingUser, navIsReady]);
+
+
 
   // Show splash screen
   if (showSplash || !fontsLoaded) {
@@ -142,7 +154,12 @@ export default function App() {
   };
 
   return (
-    <NavigationContainer linking={linking} ref={navigationRef}>
+    <NavigationContainer
+  linking={linking}
+  ref={navigationRef}
+  onReady={() => setNavIsReady(true)} // ✅ flag that navigator is ready
+>
+
       <Stack.Navigator initialRouteName={getInitialRoute()}>
         {user ? (
           <>

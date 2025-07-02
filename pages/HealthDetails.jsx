@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, ScrollView, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import {
+  View, Text, TextInput, ScrollView, StyleSheet, TouchableOpacity, Alert, ImageBackground, Dimensions
+} from 'react-native';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../config/firebase-config.js';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
+
+const { width } = Dimensions.get('window');
 
 export default function HealthDetails({ navigation }) {
   const [gender, setGender] = useState('');
@@ -241,134 +245,308 @@ This is calculated using the Mifflin-St Jeor Equation and adjusted based on your
   );
 };
 
+const getBmiCategory = (value) => {
+  const bmiVal = parseFloat(value);
+  if (bmiVal < 18.5) return 'Underweight';
+  if (bmiVal < 25) return 'Healthy';
+  if (bmiVal < 30) return 'Overweight';
+  return 'Obese';
+};
+
+const getBmiBoxStyle = () => {
+  const category = getBmiCategory(bmi);
+  if (category === 'Underweight') return { backgroundColor: '#FFD54F' };
+  if (category === 'Healthy') return { backgroundColor: '#A5D6A7' };
+  if (category === 'Overweight') return { backgroundColor: '#FF8A65' };
+  if (category === 'Obese') return { backgroundColor: '#EF5350' };
+  return {};
+};
+
+const getBmiTextStyle = () => ({
+  color: '#fff',
+  fontWeight: 'bold',
+});
 
 
-  return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.header}>Health Details</Text>
 
-      <Text style={styles.label}>Gender</Text>
-      <View style={styles.pickerWrapper}>
-        <Picker selectedValue={gender} onValueChange={setGender} style={styles.picker}>
-          <Picker.Item label="Select gender" value="" />
-          <Picker.Item label="Male" value="Male" />
-          <Picker.Item label="Female" value="Female" />
-        </Picker>
-      </View>
 
-      <Text style={styles.label}>Age</Text>
-      <View style={styles.ageBox}>
-        <Text style={styles.ageText}>{age !== null ? `${age} years` : "--"}</Text>
-      </View>
+return (
+    <ImageBackground
+      source={require('../assets/background.png')}
+      style={{ flex: 1 }}
+      resizeMode="cover"
+    >
 
-      <TouchableOpacity onPress={() => setShowDatePicker(true)}>
-        <Text style={styles.birthdayText}>{birthday ? `Birthday: ${birthday}` : 'Select Birthday'}</Text>
-      </TouchableOpacity>
+      
 
-      {showDatePicker && (
-        <DateTimePicker
-          value={birthday ? new Date(birthday) : new Date()}
-          mode="date"
-          display="default"
-          onChange={handleDateChange}
+      <ScrollView contentContainerStyle={styles.container}>
+
+        <View style={styles.tabContainer}>
+  <TouchableOpacity
+    style={[styles.tab, styles.leftTab]}
+    onPress={() => navigation.goBack()} // assumes "About You" is previous screen
+  >
+    <Text style={styles.tabText}>About You</Text>
+  </TouchableOpacity>
+  <View style={[styles.tab, styles.activeTab]}>
+    <Text style={[styles.tabText, styles.activeTabText]}>Health Details</Text>
+  </View>
+</View>
+        <Text style={styles.header}>Health Details</Text>
+
+        <Text style={styles.label}>Gender</Text>
+        <View style={styles.inputBox}>
+          <Picker
+            selectedValue={gender}
+            onValueChange={setGender}
+            style={styles.picker}
+          >
+            <Picker.Item label="Select gender" value="" />
+            <Picker.Item label="Male" value="Male" />
+            <Picker.Item label="Female" value="Female" />
+          </Picker>
+        </View>
+
+        <Text style={styles.label}>Birthday</Text>
+        <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.inputBox}>
+          <Text style={styles.textInput}>
+            {birthday ? `🎂 ${birthday}` : 'Select Birthday'}
+          </Text>
+        </TouchableOpacity>
+        {showDatePicker && (
+          <DateTimePicker
+            value={birthday ? new Date(birthday) : new Date()}
+            mode="date"
+            display="default"
+            onChange={handleDateChange}
+          />
+        )}
+
+        <Text style={styles.label}>Age</Text>
+        <View style={styles.readOnlyBox}>
+          <Text style={styles.textInput}>{age !== null ? `${age} years` : '--'}</Text>
+        </View>
+
+        <Text style={styles.label}>Height (cm)</Text>
+        <TextInput
+          style={styles.inputBox}
+          placeholder="Enter height"
+          placeholderTextColor="#888"
+          value={height}
+          onChangeText={handleHeightChange}
+          keyboardType="numeric"
         />
-      )}
 
-      <Text style={styles.label}>Height (cm)</Text>
-      <TextInput placeholder="Enter height" style={styles.input} value={height} onChangeText={handleHeightChange} keyboardType="numeric" />
+        <Text style={styles.label}>Weight (kg)</Text>
+        <TextInput
+          style={styles.inputBox}
+          placeholder="Enter weight"
+          placeholderTextColor="#888"
+          value={weight}
+          onChangeText={handleWeightChange}
+          keyboardType="numeric"
+        />
 
-      <Text style={styles.label}>Weight (kg)</Text>
-      <TextInput placeholder="Enter weight" style={styles.input} value={weight} onChangeText={handleWeightChange} keyboardType="numeric" />
-
-      <Text style={styles.label}>BMI</Text>
-      <View style={styles.ageBox}>
-        <Text style={styles.ageText}>{bmi !== null ? bmi : "--"}</Text>
-      </View>
-
-      <Text style={styles.label}>Health Complications</Text>
-      <View style={styles.inputRow}>
-        <TextInput placeholder="Add health complication" value={currentHealthComp} onChangeText={setCurrentHealthComp} style={styles.input} />
-        <TouchableOpacity onPress={handleAddHealthComp} style={styles.addButton}>
-          <Text style={styles.addButtonText}>Add</Text>
-        </TouchableOpacity>
-      </View>
-      <View style={styles.chipContainer}>
-        {healthComplications.map((item, index) => (
-          <View key={index} style={styles.chip}>
-            <Text style={styles.chipText}>{item}</Text>
-            <TouchableOpacity onPress={() => handleRemoveHealthComp(index)}>
-              <Ionicons name="close" size={16} color="white" />
-            </TouchableOpacity>
-          </View>
-        ))}
-      </View>
-
-      <Text style={styles.label}>Allergies</Text>
-      <View style={styles.inputRow}>
-        <TextInput placeholder="Add allergy" value={currentAllergy} onChangeText={setCurrentAllergy} style={styles.input} />
-        <TouchableOpacity onPress={handleAddAllergy} style={styles.addButton}>
-          <Text style={styles.addButtonText}>Add</Text>
-        </TouchableOpacity>
-      </View>
-      <View style={styles.chipContainer}>
-        {allergies.map((item, index) => (
-          <View key={index} style={styles.chip}>
-            <Text style={styles.chipText}>{item}</Text>
-            <TouchableOpacity onPress={() => handleRemoveAllergy(index)}>
-              <Ionicons name="close" size={16} color="white" />
-            </TouchableOpacity>
-          </View>
-        ))}
-
-      </View>
-
-       <Text style={styles.label}>Goal</Text>
-<View style={styles.pickerWrapper}>
-  <Picker selectedValue={goal} onValueChange={setGoal} style={styles.picker}>
-    <Picker.Item label="Select Goal" value="" />
-    <Picker.Item label="Lose Weight" value="lose" />
-    <Picker.Item label="Maintain Weight" value="maintain" />
-    <Picker.Item label="Gain Weight" value="gain" />
-  </Picker>
+        <Text style={styles.label}>BMI</Text>
+<View style={[styles.readOnlyBox, getBmiBoxStyle()]}>
+  <Text style={[styles.textInput, getBmiTextStyle()]}>
+    {bmi !== null ? `${bmi} (${getBmiCategory(bmi)})` : '--'}
+  </Text>
 </View>
 
-<Text style={styles.label}>Activity Level</Text>
-<View style={styles.pickerWrapper}>
-  <Picker selectedValue={activityLevel} onValueChange={setActivityLevel} style={styles.picker}>
-    <Picker.Item label="Sedentary (little/no exercise)" value="sedentary" />
-    <Picker.Item label="Lightly Active (Exercise 1–3x/week)" value="light" />
-    <Picker.Item label="Moderately Active (Exercise 3–4x/week)" value="moderate" />
-    <Picker.Item label="Very Active (Exercise 4–5x/week)" value="active" />
-    <Picker.Item label="Extra Active (Very intense exercise everyday or physical job)" value="very_active" />
-  </Picker>
-</View>
+        <Text style={styles.label}>Health Complications</Text>
+        <View style={styles.inputRow}>
+          <TextInput
+            style={[styles.inputBox, { flex: 1 }]}
+            placeholder="Add health complication"
+            value={currentHealthComp}
+            onChangeText={setCurrentHealthComp}
+            placeholderTextColor="#888"
+          />
+          <TouchableOpacity onPress={handleAddHealthComp} style={styles.addButton}>
+            <Text style={styles.addButtonText}>Add</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.chipContainer}>
+          {healthComplications.map((item, index) => (
+            <View key={index} style={styles.chip}>
+              <Text style={styles.chipText}>{item}</Text>
+              <TouchableOpacity onPress={() => handleRemoveHealthComp(index)}>
+                <Ionicons name="close" size={16} color="white" />
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
 
+        <Text style={styles.label}>Allergies</Text>
+        <View style={styles.inputRow}>
+          <TextInput
+            style={[styles.inputBox, { flex: 1 }]}
+            placeholder="Add allergy"
+            value={currentAllergy}
+            onChangeText={setCurrentAllergy}
+            placeholderTextColor="#888"
+          />
+          <TouchableOpacity onPress={handleAddAllergy} style={styles.addButton}>
+            <Text style={styles.addButtonText}>Add</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.chipContainer}>
+          {allergies.map((item, index) => (
+            <View key={index} style={styles.chip}>
+              <Text style={styles.chipText}>{item}</Text>
+              <TouchableOpacity onPress={() => handleRemoveAllergy(index)}>
+                <Ionicons name="close" size={16} color="white" />
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
 
+        <Text style={styles.label}>Goal</Text>
+        <View style={styles.inputBox}>
+          <Picker selectedValue={goal} onValueChange={setGoal} style={styles.picker}>
+            <Picker.Item label="Select Goal" value="" />
+            <Picker.Item label="Lose Weight" value="lose" />
+            <Picker.Item label="Maintain Weight" value="maintain" />
+            <Picker.Item label="Gain Weight" value="gain" />
+          </Picker>
+        </View>
 
-      <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-        <Text style={styles.saveButtonText}>Save</Text>
-      </TouchableOpacity>
-    </ScrollView>
+        <Text style={styles.label}>Activity Level</Text>
+        <View style={styles.inputBox}>
+          <Picker selectedValue={activityLevel} onValueChange={setActivityLevel} style={styles.picker}>
+            <Picker.Item label="Sedentary (little/no exercise)" value="sedentary" />
+            <Picker.Item label="Lightly Active (1–3x/week)" value="light" />
+            <Picker.Item label="Moderately Active (3–4x/week)" value="moderate" />
+            <Picker.Item label="Very Active (4–5x/week)" value="active" />
+            <Picker.Item label="Extra Active (daily intense/physical job)" value="very_active" />
+          </Picker>
+        </View>
+
+        <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+          <Text style={styles.saveButtonText}>Save</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 20 },
-  header: { fontSize: 24, fontWeight: 'bold', marginBottom: 20, color: '#6C63FF' },
-  label: { fontSize: 16, marginTop: 10, marginBottom: 4 },
-  pickerWrapper: { borderWidth: 1, borderColor: '#ccc', borderRadius: 5, marginBottom: 10 },
-  picker: { height: 48, width: '100%' },
-  ageBox: { borderWidth: 1, borderColor: '#ccc', borderRadius: 5, padding: 12, marginBottom: 10 },
-  ageText: { fontSize: 16, color: '#333' },
-  birthdayText: { fontSize: 14, color: '#6C63FF', marginBottom: 10 },
-  input: { borderWidth: 1, borderColor: '#ccc', padding: 10, marginVertical: 10, borderRadius: 5 },
-  saveButton: { backgroundColor: '#6C63FF', padding: 15, borderRadius: 10, marginTop: 20, alignItems: 'center' },
-  saveButtonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-  inputRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  addButton: { backgroundColor: '#6C63FF', padding: 10, borderRadius: 5, marginLeft: 10 },
-  addButtonText: { color: '#fff', fontWeight: 'bold' },
-  chipContainer: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 },
-  chip: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#6C63FF', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, margin: 4 },
-  chipText: { color: '#fff', marginRight: 6 },
+  container: {
+    padding: 20,
+    alignItems: 'stretch',
+  },
+  header: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#7C3AED',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  label: {
+    fontSize: 14,
+    color: '#333',
+    marginBottom: 6,
+    marginTop: 12,
+  },
+  inputBox: {
+    backgroundColor: '#fff',
+    borderRadius: 30,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 10,
+  },
+  readOnlyBox: {
+    backgroundColor: '#eee',
+    borderRadius: 30,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 10,
+  },
+  textInput: {
+    fontSize: 16,
+    color: '#333',
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  addButton: {
+    backgroundColor: '#8E24AA',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 30,
+    marginLeft: 8,
+  },
+  addButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  chipContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 10,
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#6A1B9A',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    margin: 4,
+  },
+  chipText: {
+    color: '#fff',
+    marginRight: 6,
+  },
+  picker: {
+    width: '100%',
+    height: 44,
+    color: '#333',
+  },
+  saveButton: {
+    backgroundColor: '#8E24AA',
+    paddingVertical: 14,
+    borderRadius: 30,
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  saveButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  tabContainer: {
+  flexDirection: 'row',
+  backgroundColor: 'white',
+  borderRadius: 30,
+  overflow: 'hidden',
+  marginBottom: 20,
+},
+tab: {
+  flex: 1,
+  paddingVertical: 12,
+  alignItems: 'center',
+  backgroundColor: '#E0BBFF',
+},
+leftTab: {
+  borderTopLeftRadius: 30,
+  borderBottomLeftRadius: 30,
+},
+activeTab: {
+  backgroundColor: '#8E24AA',
+  borderTopRightRadius: 30,
+  borderBottomRightRadius: 30,
+},
+tabText: {
+  color: '#6A1B9A',
+  fontWeight: 'bold',
+},
+activeTabText: {
+  color: 'white',
+},
+
 });
 // This code defines a HealthDetails component that allows users to manage their health information,

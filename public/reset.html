@@ -9,7 +9,7 @@
       const mode = params.get('mode');
 
       if ((mode === 'resetPassword' || mode === 'verifyEmail') && oobCode) {
-  window.location.href = `mycalorie://action?oobCode=${oobCode}&mode=${mode}`;
+  window.location.href = `mycalorie://reset?oobCode=${oobCode}&mode=${mode}`;
 } else {
   document.body.innerHTML = "Invalid or expired link.";
 }

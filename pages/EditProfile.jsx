@@ -11,13 +11,16 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme, useFocusEffect } from "@react-navigation/native";
 //import { Home, Target, ClipboardList, User } from "lucide-react-native";
-import { auth, db } from "../config/firebase-config.js";
+import { storage, auth, db } from "../config/firebase-config.js";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { verifyBeforeUpdateEmail, updatePassword } from "firebase/auth";
 import { getReauthenticated, setReauthenticated } from "./auth/utils/authState"; // Adjust the path as needed
 import * as ImagePicker from "expo-image-picker";
-import { Image } from "react-native";
+import { Image, ImageBackground } from "react-native";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { Feather } from '@expo/vector-icons';
+
+
 
 
 
@@ -72,49 +75,45 @@ const EditProfile = ({ navigation, route }) => {
     }, [])
   );
 
-  const pickImage = async () => {
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 1,
-      });
-  
-      if (!result.canceled) {
-        const uri = result.assets[0].uri;
-        setProfileImage(uri); // Shows in UI immediately
-  
-        const response = await fetch(uri);
-        const blob = await response.blob();
-  
-        const storage = getStorage();
-        const user = auth.currentUser;
-  
-        if (!user) {
-          Alert.alert("Error", "No authenticated user found.");
-          return;
-        }
-  
-        const storageRef = ref(storage, `profilePictures/${user.uid}.jpg`);
-  
-        // Upload to Storage
-        await uploadBytes(storageRef, blob);
-        const downloadURL = await getDownloadURL(storageRef);
-  
-        // Save URL to Firestore
-        const db = getFirestore();
-        const userDocRef = doc(db, "users", user.uid);
-        await updateDoc(userDocRef, { photoURL: downloadURL });
-  
-        setProfileImage(downloadURL); // Update UI with uploaded image
-  
-        Alert.alert("Success", "Profile picture updated.");
-      }
-    } catch (error) {
-      console.error("Image upload error:", error);
-      Alert.alert("Error", error.message);
+const pickImage = async () => {
+  try {
+    const user = auth.currentUser;
+    if (!user) {
+      Alert.alert("Error", "No authenticated user found.");
+      return;
     }
-  };
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 1,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    });
+
+    if (!result.canceled && result.assets?.length > 0) {
+      const uri = result.assets[0].uri;
+      setProfileImage(uri); // Show immediately
+
+      const response = await fetch(uri);
+      const blob = await response.blob();
+
+      const storageRef = ref(storage, `profilePictures/${user.uid}.jpg`);
+
+      await uploadBytes(storageRef, blob);
+      const downloadURL = await getDownloadURL(storageRef);
+
+      const userDocRef = doc(db, "users", user.uid);
+      await updateDoc(userDocRef, { photoURL: downloadURL });
+
+      setProfileImage(downloadURL); // Update with actual Firebase URL
+      Alert.alert("Success", "Profile picture updated.");
+    }
+  } catch (error) {
+    console.error("Image upload error:", error);
+    Alert.alert("Upload Failed", error.message || "An unknown error occurred.");
+  }
+};
+
   
   
   const handleSaveUsername = async () => {
@@ -210,184 +209,188 @@ const handleSetNewPassword = async () => {
 };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-      <View style={styles.tabContainer}>
-  <TouchableOpacity
-    style={[styles.tab, activeTab === "About You" && styles.activeTab]}
-    onPress={() => setActiveTab("About You")}
-  >
-    <Text style={[styles.tabText, activeTab === "About You" && styles.activeTabText]}>About You</Text>
-  </TouchableOpacity>
-  <TouchableOpacity
-    style={[styles.tab, activeTab === "HealthDetails" && styles.activeTab]}
-    onPress={() => navigation.navigate("HealthDetails")}
-  >
-    <Text style={[styles.tabText, activeTab === "HealthDetails" && styles.activeTabText]}>Health Details</Text>
-  </TouchableOpacity>
-</View>
+// ...imports and logic stay the same above this line
 
-<View style={styles.profilePictureContainer}>
-  <TouchableOpacity
-    style={styles.imageWrapper}
-    onPress={pickImage}
-  >
-    <Image
-      source={profileImage ? { uri: profileImage } : require("../assets/profile-placeholder.png")}
-      style={styles.profileImage}
-    />
-    <Text style={styles.addPictureText}>Add Profile Picture</Text>
-  </TouchableOpacity>
-</View>
-
-
-        <View style={styles.inputRow}>
-          <Text style={[styles.label, { color: colors.text }]}>Change Username</Text>
-          <TextInput
-            style={[styles.input, { borderColor: colors.border, color: colors.text }]}
-            value={username}
-            onChangeText={setUsername}
-            placeholder="Enter new username"
-            placeholderTextColor={colors.border}
-          />
-        </View>
-
-        <TouchableOpacity style={[styles.button, { backgroundColor: colors.primary }]} onPress={handleSaveUsername}>
-          <Text style={styles.buttonText}>Save Username</Text>
-        </TouchableOpacity>
-
-        <View style={styles.inputRow}>
-          <Text style={[styles.label, { color: colors.text }]}>Change Email</Text>
-          <TextInput
-            style={[styles.input, { borderColor: colors.border, color: colors.text }]}
-            value={email}
-            onChangeText={setEmail}
-            placeholder="Enter new email"
-            placeholderTextColor={colors.border}
-          />
-        </View>
-
-        <TouchableOpacity style={[styles.button, { backgroundColor: colors.primary }]} onPress={handleSendEmailChangeLink}>
-          <Text style={styles.buttonText}>Send Email Change Link</Text>
-        </TouchableOpacity>
-
-        <View style={styles.inputRow}>
-          <Text style={[styles.label, { color: colors.text }]}>Change Password</Text>
-          <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <TextInput
-              secureTextEntry={!showPassword}
-              editable={isReauthenticated}
-              style={[
-                styles.input,
-                {
-                  borderColor: colors.border,
-                  color: colors.text,
-                  backgroundColor: isReauthenticated ? colors.card : colors.border,
-                  flex: 1,
-                },
-              ]}
-              value={isReauthenticated ? password : ""}
-              onChangeText={setPassword}
-              placeholder="••••••••"
-              placeholderTextColor={colors.border}
-            />
-            <TouchableOpacity
-              onPress={() => {
-                if (!isReauthenticated) {
-                  navigation.navigate("Reauthenticate");
-                } else {
-                  setShowPassword(!showPassword);
-                }
-              }}
-            >
-              <Ionicons
-                name={showPassword ? "eye-off" : "eye"}
-                size={20}
-                color={colors.text}
-                style={{ marginLeft: 10 }}
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {isReauthenticated && (
-          <View style={styles.inputRow}>
-            <Text style={[styles.label, { color: colors.text }]}>Confirm Password</Text>
-            <TextInput
-              secureTextEntry={!showPassword}
-              editable={true}
-              style={[styles.input, { borderColor: colors.border, color: colors.text }]}
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              placeholder="Confirm new password"
-              placeholderTextColor={colors.border}
-            />
-          </View>
-        )}
-
+<ImageBackground source={require('../assets/background.png')} style={{ flex: 1 }} resizeMode="cover">
+  <ScrollView contentContainerStyle={styles.container}>
+    {/* Tabs */}
+    <View style={styles.tabContainer}>
       <TouchableOpacity
-          style={[styles.button, { backgroundColor: colors.primary }]}
-          onPress={handleSetNewPassword}
+        style={[styles.tab, activeTab === 'About You' && styles.activeTab]}
+        onPress={() => setActiveTab('About You')}
       >
-          <Text style={styles.buttonText}>Set New Password</Text>
+        <Text style={[styles.tabText, activeTab === 'About You' && styles.activeTabText]}>About You</Text>
       </TouchableOpacity>
-
-      </ScrollView>
+      <TouchableOpacity
+        style={[styles.tab, activeTab === 'HealthDetails' && styles.activeTab]}
+        onPress={() => navigation.navigate('HealthDetails')}
+      >
+        <Text style={[styles.tabText, activeTab === 'HealthDetails' && styles.activeTabText]}>Health Details</Text>
+      </TouchableOpacity>
     </View>
+
+    {/* Profile Image */}
+    <TouchableOpacity style={styles.imageWrapper} onPress={pickImage}>
+      <Image
+        source={profileImage ? { uri: profileImage } : require('../assets/profile-placeholder.png')}
+        style={styles.profileImage}
+      />
+      <Text style={styles.addText}>Add Profile Picture</Text>
+    </TouchableOpacity>
+
+    {/* Username */}
+    <View style={styles.inputBox}>
+      <TextInput
+        placeholder="Username"
+        value={username}
+        onChangeText={setUsername}
+        style={styles.input}
+        placeholderTextColor="#888"
+      />
+    </View>
+    <TouchableOpacity style={styles.button} onPress={handleSaveUsername}>
+      <Text style={styles.buttonText}>Save Username</Text>
+    </TouchableOpacity>
+
+    {/* Email */}
+    <View style={styles.inputBox}>
+      <TextInput
+        placeholder="Email"
+        value={email}
+        onChangeText={setEmail}
+        style={styles.input}
+        placeholderTextColor="#888"
+        keyboardType="email-address"
+        autoCapitalize="none"
+      />
+    </View>
+    <TouchableOpacity style={styles.button} onPress={handleSendEmailChangeLink}>
+      <Text style={styles.buttonText}>Send Email Change Link</Text>
+    </TouchableOpacity>
+
+    {/* Password */}
+    <View style={styles.inputBox}>
+      <View style={styles.passwordRow}>
+        <TextInput
+          placeholder="New Password"
+          value={isReauthenticated ? password : ''}
+          onChangeText={setPassword}
+          style={[styles.input, { flex: 1 }]}
+          secureTextEntry={!showPassword}
+          editable={isReauthenticated}
+          placeholderTextColor="#888"
+        />
+        <TouchableOpacity
+          onPress={() => {
+            if (!isReauthenticated) navigation.navigate('Reauthenticate');
+            else setShowPassword(!showPassword);
+          }}
+        >
+          <Feather
+            name={showPassword ? 'eye-off' : 'eye'}
+            size={20}
+            color="#6A1B9A"
+            style={{ marginLeft: 8 }}
+          />
+        </TouchableOpacity>
+      </View>
+    </View>
+
+    {isReauthenticated && (
+      <View style={styles.inputBox}>
+        <TextInput
+          placeholder="Confirm Password"
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          style={styles.input}
+          secureTextEntry={!showPassword}
+          placeholderTextColor="#888"
+        />
+      </View>
+    )}
+
+    <TouchableOpacity style={styles.button} onPress={handleSetNewPassword}>
+      <Text style={styles.buttonText}>Set New Password</Text>
+    </TouchableOpacity>
+  </ScrollView>
+</ImageBackground>
+
   );
 };
 
 export default EditProfile;
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingTop: 20 },
-  inputRow: { marginTop: 20 },
-  label: { marginBottom: 6, fontSize: 14, fontWeight: "500" },
-  input: { height: 48, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, fontSize: 16 },
-  button: { height: 48, borderRadius: 10, justifyContent: "center", alignItems: "center", marginTop: 20 },
-  buttonText: { color: "white", fontSize: 16, fontWeight: "bold" },
+  container: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 16,
+  },
   tabContainer: {
-    flexDirection: "row",
-    borderBottomWidth: 1,
-    borderColor: "#ccc",
+    flexDirection: 'row',
+    backgroundColor: 'white',
+    borderRadius: 30,
+    overflow: 'hidden',
     marginBottom: 20,
   },
   tab: {
     flex: 1,
     paddingVertical: 12,
-    alignItems: "center",
+    alignItems: 'center',
+    backgroundColor: '#E0BBFF',
   },
   activeTab: {
-    borderBottomWidth: 3,
-    borderColor: "#6C63FF",
+    backgroundColor: '#8E24AA',
   },
   tabText: {
-    fontSize: 16,
-    color: "#888",
+    color: '#6A1B9A',
+    fontWeight: 'bold',
   },
   activeTabText: {
-    color: "#6C63FF",
-    fontWeight: "bold",
-  },
-  profilePictureContainer: {
-    alignItems: "center",
-    marginVertical: 20,
+    color: 'white',
   },
   imageWrapper: {
-    alignItems: "center",
+    alignItems: 'center',
+    marginBottom: 20,
   },
   profileImage: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: "#ccc",
+    backgroundColor: '#ccc',
   },
-  addPictureText: {
-    marginTop: 8,
-    color: "#6C63FF",
-    fontWeight: "bold",
+  addText: {
+    marginTop: 6,
+    color: '#6A1B9A',
+    fontWeight: 'bold',
   },
-  
-  
+  inputBox: {
+    width: '100%',
+    backgroundColor: '#fff',
+    borderRadius: 30,
+    paddingHorizontal: 16,
+    marginVertical: 8,
+  },
+  input: {
+    height: 50,
+    color: '#000',
+  },
+  button: {
+    backgroundColor: '#8E24AA',
+    paddingVertical: 14,
+    paddingHorizontal: 30,
+    borderRadius: 30,
+    marginTop: 10,
+    width: '100%',
+  },
+  buttonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  passwordRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
 });
+

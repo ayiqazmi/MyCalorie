@@ -1,10 +1,15 @@
 import React, { useState, useLayoutEffect, useEffect } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, Alert } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, Alert , ImageBackground} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, getDoc, getFirestore } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { storage } from "../config/firebase-config";
+import { LinearGradient } from 'expo-linear-gradient';
+import background from "../assets/background.png"; // make sure this exists
+
 import { auth } from "../config/firebase-config.js";
 //import { useThemedStyles } from "../hooks/useThemedStyles";
 
@@ -16,6 +21,7 @@ export default function ProfileScreen() {
   const navigation = useNavigation();
   const db = getFirestore();
 const styles = lightStyles;
+//const storage = getStorage();
 
   useLayoutEffect(() => {
     navigation.setOptions({ title: "My Profile" });
@@ -65,8 +71,6 @@ useEffect(() => {
 
   fetchUserData();
 }, []);
-
-
 
   const handleEditProfile = () => {
     navigation.navigate("EditProfile");
@@ -138,22 +142,26 @@ const handleDeleteAccount = () => {
 
 
   return (
-    <View style={styles.outerContainer}>
+    <ImageBackground
+  source={background}
+  style={styles.outerContainer}
+  resizeMode="cover"
+>
+
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.profileSection}>
-          <Image
-            source={profileImage ? { uri: profileImage } : require("../assets/profile-placeholder.png")}
-            style={styles.profileImage}
-          />
+<View style={styles.profileImageContainer}>
+  <Image
+    source={profileImage ? { uri: profileImage } : require("../assets/profile-placeholder.png")}
+    style={styles.profileImage}
+  />
+</View>
           <Text style={styles.username}>{username}</Text>
           <Text style={styles.email}>{email}</Text>
         </View>
 
-        <View style={styles.sectionHeader}>
-  <Text style={styles.sectionHeaderText}>Health Details</Text>
-</View>
-
-<View style={styles.healthSection}>
+<View style={styles.card}>
+  <Text style={styles.cardTitle}>Health Details</Text>
   <Text style={styles.healthItem}>Gender: {healthDetails.gender}</Text>
   <Text style={styles.healthItem}>Birthday: {healthDetails.birthday}</Text>
   <Text style={styles.healthItem}>Age: {healthDetails.age}</Text>
@@ -161,27 +169,24 @@ const handleDeleteAccount = () => {
   <Text style={styles.healthItem}>Weight: {healthDetails.weight} kg</Text>
   <Text style={styles.healthItem}>BMI: {healthDetails.bmi}</Text>
   <Text style={styles.healthItem}>
-  Complications: {(healthDetails.complications || []).length > 0
-    ? healthDetails.complications.join(", ")
-    : "None"}
-</Text>
-
-<Text style={styles.healthItem}>
-  Allergies: {(healthDetails.allergies || []).length > 0
-    ? healthDetails.allergies.join(", ")
-    : "None"}
-</Text>
-
-<View style={styles.sectionHeader}>
-  <Text style={styles.sectionHeaderText}>Calorie Summary</Text>
+    Complications: {(healthDetails.complications || []).length > 0
+      ? healthDetails.complications.join(", ")
+      : "None"}
+  </Text>
+  <Text style={styles.healthItem}>
+    Allergies: {(healthDetails.allergies || []).length > 0
+      ? healthDetails.allergies.join(", ")
+      : "None"}
+  </Text>
 </View>
-<View style={styles.healthSection}>
+
+<View style={styles.card}>
+  <Text style={styles.cardTitle}>Calorie Summary</Text>
   <Text style={styles.healthItem}>BMR: {healthDetails.bmr} kcal/day</Text>
   <Text style={styles.healthItem}>Maintenance (TDEE): {healthDetails.maintenanceCalories} kcal/day</Text>
-  <Text style={styles.healthItem}>Target Calories (based on your goal): {healthDetails.targetCalories} kcal/day</Text>
+  <Text style={styles.healthItem}>Target Calories: {healthDetails.targetCalories} kcal/day</Text>
 </View>
 
-</View>
 
 
         <View style={styles.sectionHeader}>
@@ -205,25 +210,31 @@ const handleDeleteAccount = () => {
       </ScrollView>
 
       {/* Bottom Navigation Bar */}
-<View style={styles.bottomBar}>
+<LinearGradient
+  colors={['#8E24AA', '#6C63FF']}
+  start={{ x: 0, y: 0 }}
+  end={{ x: 1, y: 0 }}
+  style={styles.bottomBar}
+>
   <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate("Home")}>
-    <Feather name="home" size={24} color="#6C63FF" />
+    <Feather name="home" size={24} color="#fff" />
     <Text style={styles.navText}>Home</Text>
   </TouchableOpacity>
   <TouchableOpacity style={styles.navItem}>
-    <Feather name="target" size={24} color="#6C63FF" />
+    <Feather name="target" size={24} color="#fff" />
     <Text style={styles.navText}>Goals</Text>
   </TouchableOpacity>
   <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate("MealPlan")}>
-    <Feather name="clipboard" size={24} color="#6C63FF" />
+    <Feather name="clipboard" size={24} color="#fff" />
     <Text style={styles.navText}>Meal Plan</Text>
   </TouchableOpacity>
   <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate("Profile")}>
-    <Feather name="user" size={24} color="#6C63FF" />
+    <Feather name="user" size={24} color="#fff" />
     <Text style={styles.navText}>Profile</Text>
   </TouchableOpacity>
-</View>
-    </View>
+</LinearGradient>
+
+    </ImageBackground>
   );
 }
 
@@ -238,14 +249,58 @@ const lightStyles = StyleSheet.create({
   sectionHeaderText: { fontSize: 16, fontWeight: "bold", color: "#333" },
   settingItem: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 16, paddingHorizontal: 20, borderBottomWidth: 1, borderColor: "#eee" },
   bottomBar: { height: 70, backgroundColor: "#f8f8f8", flexDirection: "row", justifyContent: "space-around", alignItems: "center", borderTopWidth: 1, borderTopColor: "#ddd" },
-  navItem: { alignItems: "center", justifyContent: "center" },
+  navItem: { alignItems: "center", justifyContent: "center" ,},
   navText: { fontSize: 12, marginTop: 4, color: "#333" },
-  outerContainer: { flex: 1, backgroundColor: "#fff" },
+  outerContainer: { flex: 1, backgroundColor: "#transparent" },
   scrollContent: { paddingBottom: 90 },
   settingText: { color: "#000" },
   icon: { color: "#000" },
   healthSection: { paddingHorizontal: 20, paddingVertical: 10 },
 healthItem: { fontSize: 14, marginBottom: 6, color: "#333" },
+changePhotoText: {
+  fontSize: 12,
+  color: "#7C3AED",
+  marginTop: 4,
+},
+
+bottomBar: {
+  position: "absolute",
+  bottom: 0,
+  left: 0,
+  right: 0,
+  height: 70,
+  flexDirection: "row",
+  justifyContent: "space-around",
+  alignItems: "center",
+  borderTopLeftRadius: 20,
+  borderTopRightRadius: 20,
+  overflow: "hidden",
+  backgroundColor: "#6C63FF",
+},
+navText: {
+  fontSize: 12,
+  marginTop: 4,
+  color: "#fff",
+},
+card: {
+  backgroundColor: '#fff',
+  marginHorizontal: 20,
+  marginVertical: 10,
+  borderRadius: 12,
+  padding: 16,
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.1,
+  shadowRadius: 4,
+  elevation: 4,
+},
+cardTitle: {
+  fontSize: 16,
+  fontWeight: 'bold',
+  marginBottom: 10,
+  color: '#333',
+},
+
 
 });
 
