@@ -1,14 +1,23 @@
-import React, { useState, useEffect, useCallback, useLayoutEffect} from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, ActivityIndicator, Button, ImageBackground } from 'react-native';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { Feather, Ionicons } from '@expo/vector-icons';
+import React, { useState, useEffect, useCallback, useLayoutEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Image,
+  TouchableOpacity,
+  ActivityIndicator,
+  ImageBackground,
+} from 'react-native';
+import { Ionicons, Feather } from '@expo/vector-icons';
 import { getAuth } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../config/firebase-config';
 import { format } from 'date-fns';
 import { generateMealPlan } from '../utils/generateMealPlan';
-import background from '../assets/background.png'; // ✅ Use your actual background image
+import background from '../assets/background.png';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useFocusEffect } from '@react-navigation/native';
 
 const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -16,69 +25,118 @@ export default function MealPlanScreen({ route, navigation }) {
   const [mealPlan, setMealPlan] = useState(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [loading, setLoading] = useState(true);
-  //const navigation = useNavigation();
 
-    useLayoutEffect(() => {
+  useLayoutEffect(() => {
     navigation.setOptions({ title: 'Your Meal Plan' });
   }, [navigation]);
 
-  
-useFocusEffect(
-  useCallback(() => {
-    const updateFromParams = async () => {
-      const { updatedMeal, updatedMealType, updatedDate } = route.params || {};
+  // ✅ Handle updated meals from other screen
+  useFocusEffect(
+    useCallback(() => {
+      const updateFromParams = async () => {
+        const { updatedMeal, updatedMealType, updatedDate } = route.params || {};
+        if (updatedMeal && updatedMealType && updatedDate) {
+          const auth = getAuth();
+          const currentUser = auth.currentUser;
+          if (!currentUser) return;
 
-      // Make sure all required values are present
-      if (updatedMeal && updatedMealType && updatedDate) {
+          const parsedDate = new Date(updatedDate);
+          const dateKey = format(parsedDate, 'yyyy-MM-dd');
+          const mealDocRef = doc(db, 'users', currentUser.uid, 'mealPlans', dateKey);
+          const existing = await getDoc(mealDocRef);
+
+          let updatedPlan = {};
+          if (existing.exists()) {
+            const oldPlan = existing.data().plan || {};
+            updatedPlan = {
+              ...oldPlan,
+              [updatedMealType]: [updatedMeal],
+            };
+          } else {
+            updatedPlan = {
+              [updatedMealType]: [updatedMeal],
+            };
+          }
+
+          await setDoc(mealDocRef, {
+            plan: updatedPlan,
+            updatedAt: new Date().toISOString(),
+          });
+
+          setMealPlan(updatedPlan);
+          setSelectedDate(parsedDate);
+
+          // Clear params
+          navigation.setParams({
+            updatedMeal: undefined,
+            updatedMealType: undefined,
+            updatedDate: undefined,
+          });
+        }
+      };
+
+      updateFromParams();
+    }, [route.params])
+  );
+
+  // ✅ Initial load
+  useEffect(() => {
+    const fetchOrGenerateWeekPlan = async () => {
+      try {
         const auth = getAuth();
         const currentUser = auth.currentUser;
         if (!currentUser) return;
 
-        const parsedDate = new Date(updatedDate); // string to Date
-        const dateKey = format(parsedDate, 'yyyy-MM-dd');
-        const mealDocRef = doc(db, 'users', currentUser.uid, 'mealPlans', dateKey);
-        const existing = await getDoc(mealDocRef);
+        const userDocRef = doc(db, 'users', currentUser.uid);
+        const userSnap = await getDoc(userDocRef);
+        if (!userSnap.exists()) return;
 
-        let updatedPlan = {};
-        if (existing.exists()) {
-          const oldPlan = existing.data().plan || {};
-          updatedPlan = {
-            ...oldPlan,
-            [updatedMealType]: [updatedMeal],
-          };
-        } else {
-          updatedPlan = {
-            [updatedMealType]: [updatedMeal],
-          };
+        const userData = userSnap.data();
+        const userProfile = {
+          allergies: userData.allergies || [],
+          healthComplications: userData.healthComplications || [],
+          healthGoal: userData.healthGoal || 'maintain',
+          caloriesGoal: userData.targetCalories || 2000,
+        };
+
+        const today = new Date();
+        const weekPlans = {};
+
+        for (let i = 0; i < 7; i++) {
+          const targetDate = new Date(today);
+          targetDate.setDate(today.getDate() + i);
+          const formatted = format(targetDate, 'yyyy-MM-dd');
+
+          const mealDocRef = doc(db, 'users', currentUser.uid, 'mealPlans', formatted);
+          const cached = await getDoc(mealDocRef);
+
+          if (cached.exists()) {
+            weekPlans[formatted] = cached.data().plan;
+          } else {
+            const { plan, createdAt } = await generateMealPlan(userProfile, targetDate.getTime());
+            await setDoc(mealDocRef, { plan, createdAt });
+            weekPlans[formatted] = plan;
+          }
         }
 
-        await setDoc(mealDocRef, {
-          plan: updatedPlan,
-          updatedAt: new Date().toISOString(),
-        });
-
-        setMealPlan(updatedPlan);
-        setSelectedDate(parsedDate);
-
-        // Clear params to prevent infinite loop
-        navigation.setParams({
-          updatedMeal: undefined,
-          updatedMealType: undefined,
-          updatedDate: undefined,
-        });
+        const todayFormatted = format(today, 'yyyy-MM-dd');
+        setMealPlan(weekPlans[todayFormatted]);
+        setSelectedDate(today);
+      } catch (err) {
+        console.error('Failed to load/generate meal plans:', err);
+        setMealPlan(null);
+      } finally {
+        setLoading(false);
       }
     };
 
-    updateFromParams();
-  }, [route.params])
-);
+    fetchOrGenerateWeekPlan();
+  }, []);
 
-
-
-
-
-useEffect(() => {
-  const fetchOrGenerateWeekPlan = async () => {
+  // ✅ Fix: Always use passed date
+  const fetchOrGenerateMealPlan = async (targetDate) => {
+    if (!targetDate) return;
+    setLoading(true);
     try {
       const auth = getAuth();
       const currentUser = auth.currentUser;
@@ -96,161 +154,107 @@ useEffect(() => {
         caloriesGoal: userData.targetCalories || 2000,
       };
 
-      const today = new Date();
-      const weekPlans = {};
+      const dateKey = format(targetDate, 'yyyy-MM-dd');
+      const mealDocRef = doc(db, 'users', currentUser.uid, 'mealPlans', dateKey);
+      const docSnap = await getDoc(mealDocRef);
 
-      for (let i = 0; i < 7; i++) {
-        const targetDate = new Date(today);
-        targetDate.setDate(today.getDate() + i);
-        const formatted = format(targetDate, 'yyyy-MM-dd');
-
-        const mealDocRef = doc(db, 'users', currentUser.uid, 'mealPlans', formatted);
-        const cached = await getDoc(mealDocRef);
-
-        if (cached.exists()) {
-          weekPlans[formatted] = cached.data().plan;
-        } else {
-          const { plan, createdAt } = await generateMealPlan(userProfile, targetDate.getTime());
-          await setDoc(mealDocRef, { plan, createdAt });
-          weekPlans[formatted] = plan;
-        }
+      if (docSnap.exists()) {
+        setMealPlan(docSnap.data().plan);
+      } else {
+        const { plan, createdAt } = await generateMealPlan(userProfile, targetDate.getTime());
+        await setDoc(mealDocRef, { plan, createdAt });
+        setMealPlan(plan);
       }
 
-      const todayFormatted = format(today, 'yyyy-MM-dd');
-      setMealPlan(weekPlans[todayFormatted]);
+      setSelectedDate(targetDate);
     } catch (err) {
-      console.error('Failed to load/generate meal plans:', err);
+      console.error('Failed to fetch/generate meal plan for day:', err);
       setMealPlan(null);
     } finally {
       setLoading(false);
     }
   };
 
-  fetchOrGenerateWeekPlan();
-}, []);
-
-
 const regenerateTodayPlan = async () => {
   setLoading(true);
+
   try {
     const auth = getAuth();
     const currentUser = auth.currentUser;
-    if (!currentUser) return;
+    if (!currentUser) throw new Error('User not signed in');
 
     const today = new Date();
     const dateKey = format(today, 'yyyy-MM-dd');
-    const userDocRef = doc(db, 'users', currentUser.uid);
-    const userSnap = await getDoc(userDocRef);
-    if (!userSnap.exists()) return;
+    const todayHex = today.getTime().toString(16);
+    // 1. Fetch user profile
+    const userRef = doc(db, 'users', currentUser.uid);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) throw new Error('User doc missing');
 
-    const userData = userSnap.data();
-    const userProfile = {
-      allergies: userData.allergies || [],
-      healthComplications: userData.healthComplications || [],
-      healthGoal: userData.healthGoal || 'maintain',
-      caloriesGoal: userData.targetCalories || 2000,
-    };
+    const {
+      allergies = [],
+      healthComplications = [],
+      healthGoal = 'maintain',
+      targetCalories = 2000,
+    } = userSnap.data();
 
-    const { plan, createdAt } = await generateMealPlan(userProfile, Date.now());
-await setDoc(doc(db, 'users', currentUser.uid, 'mealPlans', dateKey), {
-  plan,
-  createdAt,
-});
-setMealPlan(plan);
+    // 2. Generate plan
+    const { plan } = await generateMealPlan(
+      { allergies, healthComplications, healthGoal, caloriesGoal: targetCalories },
+      dateKey,          // <-- pass Date object
+    );
 
+    if (!plan) throw new Error('generateMealPlan returned empty plan');
+
+    // 3. Write to Firestore (sub‑collection design)
+    const todayPlanRef = doc(db, 'users', currentUser.uid, 'mealPlans', dateKey);
+    await setDoc(todayPlanRef, {
+      plan,
+      createdAt:  new Date().toISOString(),// rely on server time
+    });
+    
+    // 4. Update UI
+    setMealPlan(plan);
     setSelectedDate(today);
-  } catch (error) {
-    console.error('Error regenerating plan:', error);
-  } finally {
-    setLoading(false);
-  }
-};
-
-
-const fetchOrGenerateMealPlan = async (targetDate = selectedDate) => {
-  setLoading(true);
-  try {
-    const auth = getAuth();
-    const currentUser = auth.currentUser;
-    if (!currentUser) return;
-
-    const userDocRef = doc(db, 'users', currentUser.uid);
-    const userSnap = await getDoc(userDocRef);
-    if (!userSnap.exists()) return;
-
-    const userData = userSnap.data();
-    const userProfile = {
-      allergies: userData.allergies || [],
-      healthComplications: userData.healthComplications || [],
-      healthGoal: userData.healthGoal || 'maintain',
-      caloriesGoal: userData.targetCalories || 2000,
-    };
-
-    const dateKey = format(targetDate, 'yyyy-MM-dd');
-    const mealDocRef = doc(db, 'users', currentUser.uid, 'mealPlans', dateKey);
-    const docSnap = await getDoc(mealDocRef);
-
-    if (docSnap.exists()) {
-      setMealPlan(docSnap.data().plan);
-    } else {
-      const { plan, createdAt } = await generateMealPlan(userProfile, targetDate.getTime());
-      await setDoc(mealDocRef, { plan, createdAt });
-      setMealPlan(plan);
-    }
-
-    setSelectedDate(targetDate);
   } catch (err) {
-    console.error('Failed to fetch/generate meal plan for day:', err);
-    setMealPlan(null);
+    console.error('Error regenerating plan:', err);
+    // Optionally surface a toast/snackbar here
   } finally {
     setLoading(false);
   }
 };
-
-useFocusEffect(
-  useCallback(() => {
-    fetchOrGenerateMealPlan(); // Always fetch latest when screen is focused
-  }, [])
-);
-
-
-
-
-const renderMeal = (mealType, items) => {
-  const item = items[0]; // only show first item
-  return (
-    <TouchableOpacity
-      style={styles.mealCard}
-      onPress={() => navigation.navigate('CachedFoodsScreen', { mealType })}
-    >
-      <Image source={{ uri: item?.image || 'https://via.placeholder.com/80' }} style={styles.mealImage} />
-      <View style={{ flex: 1 }}>
-        <Text style={styles.mealType}>{mealType}</Text>
-        <Text style={styles.mealDesc}>{item?.name || 'No meal available'}</Text>
-
-        {(item?.calories !== undefined || item?.protein !== undefined || item?.carbs !== undefined || item?.fats !== undefined) && (
-          <View style={styles.nutritionRow}>
-            <Text style={styles.nutrientText}>Calories: {item.calories ?? 0} kcal</Text>
-            <Text style={styles.nutrientText}>Protein: {item.protein ?? 0} g</Text>
-            <Text style={styles.nutrientText}>Carbs: {item.carbs ?? 0} g</Text>
-            <Text style={styles.nutrientText}>Fats: {item.fats ?? 0} g</Text>
+  const renderMeal = (mealType, items) => {
+    const item = items[0];
+    return (
+      <TouchableOpacity
+        style={styles.mealCard}
+        onPress={() => navigation.navigate('CachedFoodsScreen', { mealType })}
+      >
+        <Image source={{ uri: item?.image || 'https://via.placeholder.com/80' }} style={styles.mealImage} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.mealType}>{mealType}</Text>
+          <Text style={styles.mealDesc}>{item?.name || 'No meal available'}</Text>
+          {(item?.calories || item?.protein || item?.carbs || item?.fats) && (
+            <View style={styles.nutritionRow}>
+              <Text style={styles.nutrientText}>Calories: {item.calories ?? 0} kcal</Text>
+              <Text style={styles.nutrientText}>Protein: {item.protein ?? 0} g</Text>
+              <Text style={styles.nutrientText}>Carbs: {item.carbs ?? 0} g</Text>
+              <Text style={styles.nutrientText}>Fats: {item.fats ?? 0} g</Text>
+            </View>
+          )}
+          <View style={styles.buttonRow}>
+            <TouchableOpacity
+              style={styles.viewBtn}
+              onPress={() => navigation.navigate('Recipe', { query: item?.name })}
+            >
+              <Text style={styles.btnText}>View Recipe</Text>
+            </TouchableOpacity>
           </View>
-        )}
-
-        <View style={styles.buttonRow}>
-          <TouchableOpacity
-            style={styles.viewBtn}
-            onPress={() => navigation.navigate('Recipe', { query: item?.name })}
-          >
-            <Text style={styles.btnText}>View Recipe</Text>
-          </TouchableOpacity>
         </View>
-      </View>
-      <Feather name="check-square" size={24} color="#6C63FF" />
-
-    </TouchableOpacity>
-  );
-};
+        <Feather name="check-square" size={24} color="#6C63FF" />
+      </TouchableOpacity>
+    );
+  };
 
   if (loading) {
     return (
@@ -261,97 +265,87 @@ const renderMeal = (mealType, items) => {
     );
   }
 
-return (
-  <ImageBackground source={background} style={styles.bg} resizeMode="cover">
-    <View style={{ flex: 1 }}>
-    <ScrollView
-        contentContainerStyle={{ paddingBottom: 120 }} // enough space for bottom bar
-        style={{ flexGrow: 1 }}
-      >
-      <View style={styles.dateBar}>
-        <Ionicons name="calendar-outline" size={20} color="#fff" />
-        <Text style={styles.dateText}>
-          Today: {format(new Date(), 'EEEE, dd MMMM yyyy')}
-        </Text>
-      </View>
-
-        <View style={styles.weekScroll}>
-          {weekDays.map((day, i) => {
-            const date = new Date();
-            date.setDate(new Date().getDate() + i);
-            const dateKey = format(date, 'yyyy-MM-dd');
-            const isSelected = format(selectedDate, 'yyyy-MM-dd') === dateKey;
-
-            return (
-              <TouchableOpacity
-                key={i}
-                style={[styles.dayCircle, isSelected && styles.dayCircleSelected]}
-                onPress={() => fetchOrGenerateMealPlan(date)}
-
-              >
-                <Text style={[styles.dayText, isSelected && styles.dayTextSelected]}>{day}</Text>
-                <Text style={[styles.dateLabel, isSelected && styles.dayTextSelected]}>
-                  {format(date, 'dd MMM')}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        {loading ? (
-          <View style={styles.loaderContainer}>
-            <ActivityIndicator size="large" color="#6C63FF" />
-            <Text style={{ marginTop: 10, color: '#6C63FF' }}>Generating meal plan...</Text>
+  return (
+    <ImageBackground source={background} style={styles.bg} resizeMode="cover">
+      <View style={{ flex: 1 }}>
+        <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
+          <View style={styles.dateBar}>
+            <Ionicons name="calendar-outline" size={20} color="#fff" />
+            <Text style={styles.dateText}>
+              Today: {format(new Date(), 'EEEE, dd MMMM yyyy')}
+            </Text>
           </View>
-        ) : mealPlan && Object.values(mealPlan).some(items => items.length > 0) ? (
-          ['breakfast', 'lunch', 'dinner', 'snacks'].map(type =>
-            mealPlan[type] && mealPlan[type].length > 0 ? (
-              <View key={type}>{renderMeal(type, mealPlan[type])}</View>
-            ) : null
-          )
-        ) : (
-          <Text style={styles.noMealText}>No suitable meals for this day.</Text>
-        )}
 
-        <TouchableOpacity style={styles.adjustBtn} onPress={() => navigation.navigate('AdjustMealPlan')}>
-          <Text style={styles.adjustText}>Adjust Meal Plan</Text>
-        </TouchableOpacity>
+          <View style={styles.weekScroll}>
+            {weekDays.map((day, i) => {
+              const date = new Date();
+              date.setDate(new Date().getDate() + i);
+              const dateKey = format(date, 'yyyy-MM-dd');
+              const isSelected = format(selectedDate, 'yyyy-MM-dd') === dateKey;
 
-        <TouchableOpacity style={styles.adjustBtn} onPress={regenerateTodayPlan}>
-  <Text style={styles.adjustText}>Regenerate Today’s Plan</Text>
-</TouchableOpacity>
+              return (
+                <TouchableOpacity
+                  key={i}
+                  style={[styles.dayCircle, isSelected && styles.dayCircleSelected]}
+                  onPress={() => fetchOrGenerateMealPlan(date)}
+                >
+                  <Text style={[styles.dayText, isSelected && styles.dayTextSelected]}>{day}</Text>
+                  <Text style={[styles.dateLabel, isSelected && styles.dayTextSelected]}>
+                    {format(date, 'dd MMM')}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
-      </ScrollView>
+          {mealPlan && Object.values(mealPlan).some(items => items.length > 0) ? (
+            ['breakfast', 'lunch', 'dinner', 'snacks'].map(type =>
+              mealPlan[type] && mealPlan[type].length > 0 ? (
+                <View key={type}>{renderMeal(type, mealPlan[type])}</View>
+              ) : null
+            )
+          ) : (
+            <Text style={styles.noMealText}>No suitable meals for this day.</Text>
+          )}
 
-      <LinearGradient
-  colors={['#8E24AA', '#6C63FF']}
-  start={{ x: 0, y: 0 }}
-  end={{ x: 1, y: 0 }}
-  style={styles.bottomBar}
->
-  <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate("Home")}>
-    <Feather name="home" size={24} color="#fff" />
-    <Text style={styles.navTextWhite}>Home</Text>
-  </TouchableOpacity>
-  <TouchableOpacity style={styles.navItem}>
-    <Feather name="target" size={24} color="#fff" />
-    <Text style={styles.navTextWhite}>Goals</Text>
-  </TouchableOpacity>
-  <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate("MealPlan")}>
-    <Feather name="clipboard" size={24} color="#fff" />
-    <Text style={styles.navTextWhite}>Meal Plan</Text>
-  </TouchableOpacity>
-  <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate("Profile")}>
-    <Feather name="user" size={24} color="#fff" />
-    <Text style={styles.navTextWhite}>Profile</Text>
-  </TouchableOpacity>
-</LinearGradient>
+          <TouchableOpacity style={styles.adjustBtn} onPress={() => navigation.navigate('AdjustMealPlan')}>
+            <Text style={styles.adjustText}>Adjust Meal Plan</Text>
+          </TouchableOpacity>
 
-    </View>
-  </ImageBackground>
-);
+          <TouchableOpacity style={styles.adjustBtn} onPress={regenerateTodayPlan}>
+            <Text style={styles.adjustText}>Regenerate Today’s Plan</Text>
+          </TouchableOpacity>
+        </ScrollView>
 
+        <LinearGradient
+          colors={['#8E24AA', '#6C63FF']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.bottomBar}
+        >
+          <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate("Home")}>
+            <Feather name="home" size={24} color="#fff" />
+            <Text style={styles.navTextWhite}>Home</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.navItem}>
+            <Feather name="target" size={24} color="#fff" />
+            <Text style={styles.navTextWhite}>Goals</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate("MealPlan")}>
+            <Feather name="clipboard" size={24} color="#fff" />
+            <Text style={styles.navTextWhite}>Meal Plan</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate("Profile")}>
+            <Feather name="user" size={24} color="#fff" />
+            <Text style={styles.navTextWhite}>Profile</Text>
+          </TouchableOpacity>
+        </LinearGradient>
+      </View>
+    </ImageBackground>
+  );
 }
+
+// 🧾 Styles stay unchanged (you already wrote them well)
 
 
 const styles = StyleSheet.create({

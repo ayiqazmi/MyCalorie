@@ -1,143 +1,129 @@
-import { getUSDAFoodsBasedOnGoal, fetchMalaysianFoodsFromFirestore } from './fetchFoodData';
-import { filterFoodsByUserNeeds } from './filterFoods';
-
-const shuffleArray = (array) => array.sort(() => Math.random() - 0.5);
-
-const getMealMacros = (totalCalories) => ({
-  calories: totalCalories,
-  protein: totalCalories * 0.3 / 4,
-  carbs: totalCalories * 0.4 / 4,
-  fat: totalCalories * 0.3 / 9,
-});
-
-const scoreFood = (food, target) => {
-  if (!food.calories || !food.protein || !food.carbs || !food.fat) return 0;
-
-  const calDiff = Math.abs(food.calories - target.calories);
-  const proteinDiff = Math.abs(food.protein - target.protein);
-  const carbDiff = Math.abs(food.carbs - target.carbs);
-  const fatDiff = Math.abs(food.fat - target.fat);
-
-  return 1000 - (calDiff + proteinDiff * 4 + carbDiff * 2 + fatDiff * 7);
-};
-
-function shuffleArrayWithSeed(array, seed) {
-  const result = [...array];
-  let currentIndex = result.length, temporaryValue, randomIndex;
-
-  // Seeded random generator (simple LCG)
-  const random = (() => {
-    let m = 0x80000000;
-    let a = 1103515245;
-    let c = 12345;
-    let state = seed % m;
-    return () => (state = (a * state + c) % m) / m;
-  })();
-
-  while (0 !== currentIndex) {
-    randomIndex = Math.floor(random() * currentIndex);
-    currentIndex--;
-
-    temporaryValue = result[currentIndex];
-    result[currentIndex] = result[randomIndex];
-    result[randomIndex] = temporaryValue;
+/* ------------------------------------------------------------------ */
+/*  Utility: quick hash to turn variantKey into a short id            */
+/* ------------------------------------------------------------------ */
+function hashKey(key) {
+  let h = 0;
+  const str = String(key);
+  for (let i = 0; i < str.length; i++) {
+    h = (h << 5) - h + str.charCodeAt(i);
+    h |= 0; // 32‑bit
   }
-
-  return result;
+  return Math.abs(h).toString(36).slice(0, 6); // e.g. "4d2f1b"
 }
 
+/* ------------------------------------------------------------------ */
+/*  Build a unique daily prompt                                       */
+/* ------------------------------------------------------------------ */
+function buildPrompt(
+  { caloriesGoal, allergies, healthGoal, healthComplications }: {
+    caloriesGoal: number;
+    allergies: string[];
+    healthGoal: string;
+    healthComplications: string[];
+  },
+  dateKey: string,          // e.g. “2025‑07‑04”
+  variantKey: string        // any string that indicates the requested “version”
+) {
+  const planId = hashKey(variantKey);  // 👉🏽 your own hash util
+
+  return `
+You are a certified Malaysian dietitian. Design a **brand‑new** full‑day meal plan for **${dateKey}** (plan‑id: ${planId}) totalling **≈${caloriesGoal} kcal**.
+
+### Structure & macro split
+- Breakfast  (25 %)
+- Lunch      (35 %)
+- Dinner     (30 %)
+- Snacks     (10 %)
+
+### Strict output schema
+Return **only** minified JSON:
+\`\`\`json
+{
+  "breakfast":[{"name":"","calories":0,"protein":0,"carbs":0,"fat":0}],
+  "lunch":    [ … ],
+  "dinner":   [ … ],
+  "snacks":   [ … ]
+}
+\`\`\`
+
+### Culinary rules
+1. Use **distinctly Malaysian dishes** or creative local twists (e.g. _Nasi Lemak Quinoa_, _Roti Canai Wrap_, _Tempeh Rendang_).
+2. Rotate dishes so that no item repeats within the same **week** or across different **plan‑ids**.
+3. Ingredients must be easy to find in Malaysian grocery stores or pasar tani.
+4. Clearly reflect any constraints:
+   • Allergies  : ${allergies.length ? allergies.join(', ') : 'none'}
+   • Health goal: ${healthGoal}
+   • Complications: ${healthComplications.length ? healthComplications.join(', ') : 'none'}
+
+### Uniqueness guard
+Compare against the implicit memory of previous ${dateKey} or plan‑id values and ensure **at least 80 %** of dish names differ.
+
+ONLY reply with valid JSON — no comments, markdown, or extra keys.
+`.trim();
+}
+/* ------------------------------------------------------------------ */
+/*  Normalisers & helpers                                             */
+/* ------------------------------------------------------------------ */
+const safeArr = v => (Array.isArray(v) ? v : []);
+
+function normalizePlan(raw) {
+  return {
+    breakfast: safeArr(raw.breakfast),
+    lunch:     safeArr(raw.lunch),
+    dinner:    safeArr(raw.dinner),
+    snacks:    safeArr(raw.snacks || raw.snack),
+  };
+}
+
+const isPlanEmpty = plan => Object.values(plan).every(a => !a.length);
+
+async function fetchAIPlan(prompt) {
+  try {
+    const res  = await fetch('https://us-central1-my-calorie-fyp.cloudfunctions.net/askMealAI', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt }),
+    });
+    const raw  = await res.text();
+    console.log('[fetchAIPlan] Raw:', raw);
+    const json = JSON.parse(raw);
+    return typeof json === 'object' && !Array.isArray(json) ? json : null;
+  } catch (err) {
+    console.error('[fetchAIPlan] Error:', err);
+    return null;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Main export                                                       */
+/* ------------------------------------------------------------------ */
+import { format } from 'date-fns';   // if you already have date‑fns in project
 
 export async function generateMealPlan(userProfile, variantKey = Date.now()) {
-  const {
-    allergies,
-    healthComplications,
-    caloriesGoal,
-    healthGoal,
-  } = userProfile;
+  const dateKey = format(new Date(variantKey), 'yyyy‑MM‑dd');  // e.g. “2025‑07‑04”
+  const prompt  = buildPrompt(userProfile, dateKey, variantKey);
 
-  if (!caloriesGoal || !healthGoal) {
-    throw new Error('Missing user calorie goal or health goal');
+  console.log('[MealPlan] Prompt:', prompt);
+
+  let plan  = {};
+  let tries = 0;
+
+  while (tries < 3) {
+    const raw = await fetchAIPlan(prompt);
+    plan      = raw ? normalizePlan(raw) : {};
+    if (!isPlanEmpty(plan)) break;
+    console.warn(`[MealPlan] Try ${tries + 1}: empty plan, retrying…`);
+    tries++;
   }
 
-  const mealRatios = {
-    breakfast: 0.25,
-    lunch: 0.35,
-    dinner: 0.3,
-    snacks: 0.1,
+  if (isPlanEmpty(plan)) {
+    throw new Error('Meal plan is empty after 3 attempts');
+  }
+
+  return {
+    plan,
+    createdAt: new Date().toISOString(),
+    dateKey,              // handy to store alongside plan
+    planId: hashKey(variantKey),
   };
-
-  const mealTargets = Object.fromEntries(
-    Object.entries(mealRatios).map(([meal, ratio]) => [
-      meal,
-      caloriesGoal * ratio,
-    ])
-  );
-
-  let usdaFoods = [];
-  let malaysianFoods = [];
-
-  try {
-    usdaFoods = await getUSDAFoodsBasedOnGoal(healthGoal);
-    console.log('[USDA] Search-based foods:', usdaFoods.length);
-  } catch (err) {
-    console.warn('[USDA] Search error:', err.message);
-  }
-
-  try {
-    malaysianFoods = await fetchMalaysianFoodsFromFirestore();
-    console.log('[Malaysia] Foods fetched:', malaysianFoods.length);
-  } catch (err) {
-    console.warn('[Malaysia] Fetch error:', err.message);
-  }
-
-  let foods = [...usdaFoods, ...malaysianFoods];
-  let filteredFoods = filterFoodsByUserNeeds(foods, allergies, healthComplications);
-filteredFoods = shuffleArrayWithSeed(filteredFoods, variantKey);
-
-  if (filteredFoods.length < 10) {
-    console.warn('Fallback: too few filtered foods, using top unfiltered.');
-    filteredFoods = shuffleArray([...foods]).slice(0, 10);
-  }
-
-  const usedNames = new Set();
-
-  const generateSmartMeal = (foods, targetCalories) => {
-    const target = getMealMacros(targetCalories);
-
-    const scored = foods
-      .filter(food => !usedNames.has(food.name?.toLowerCase()))
-      .map(food => ({ food, score: scoreFood(food, target) }))
-      .sort((a, b) => b.score - a.score);
-
-    const meal = [];
-    let totalCalories = 0;
-
-    for (const { food } of scored) {
-      const name = food.name?.toLowerCase();
-      if (usedNames.has(name)) continue;
-
-      if (totalCalories + food.calories <= targetCalories) {
-        meal.push(food);
-        totalCalories += food.calories;
-        usedNames.add(name);
-      }
-
-      if (totalCalories >= targetCalories * 0.9) break;
-    }
-
-    return meal;
-  };
-
-  const plan = {
-  breakfast: generateSmartMeal(filteredFoods, mealTargets.breakfast),
-  lunch: generateSmartMeal(filteredFoods, mealTargets.lunch),
-  dinner: generateSmartMeal(filteredFoods, mealTargets.dinner),
-  snacks: generateSmartMeal(filteredFoods, mealTargets.snacks),
-};
-
-return {
-  plan,
-  createdAt: new Date().toISOString()
-};
-
 }

@@ -1,13 +1,14 @@
 const SPOONACULAR_API_KEY = "42dd92b6a85c47d5a83e3dd22dd226d2";
-
 export async function getRecipeDetails(query) {
   try {
     // 🔍 Step 0: Clean the query using keywords
     const keywords = query
       .toLowerCase()
-      .replace(/(with|and|of|a|an|the)/gi, '')  // remove common filler words
+      .replace(/\b(with|and|of|a|an|the)\b/gi, '')  // remove common filler words as whole words
+      .replace(/\s+/g, ' ')                         // collapse multiple spaces
+      .trim()                                       // remove leading/trailing spaces
       .split(' ')
-      .filter(word => word.length > 2)         // skip short/noisy words
+      .filter(word => word.length > 2)              // skip short/noisy words
       .join(' ');
 
     console.log("[Spoonacular] Searching with keywords:", keywords);
