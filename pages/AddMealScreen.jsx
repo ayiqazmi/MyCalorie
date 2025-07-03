@@ -3,7 +3,6 @@ import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, Alert, M
 import { getDocs, collection, getFirestore, doc, getDoc, setDoc, updateDoc, arrayUnion, increment, deleteField, onSnapshot } from "firebase/firestore";
 import { auth, db } from "../config/firebase-config.js";
 import { Ionicons } from "@expo/vector-icons";
-import { searchFatSecretFoods } from "../utils/fatsecret-search";
 import { ImageBackground } from "react-native";
 import background from "../assets/background.png"; // ✅ Make sure this exists
 
@@ -127,21 +126,6 @@ const prepareFoodData = (food) => {
       sugar: food.foodNutrients?.find(n => n.nutrientName === "Sugars, total including NLEA")?.value || 0,
     };
   }
-
-  // FatSecret format
-  return {
-    name: food.name,
-    calories: food.calories || 0,
-    protein: food.protein || 0,
-    carbs: food.carbs || 0,
-    fats: food.fats || 0,
-    vitaminC: food.vitaminC || 0,
-    calcium: food.calcium || 0,
-    iron: food.iron || 0,
-    potassium: food.potassium || 0,
-    fiber: food.fiber || 0,
-    sugar: food.sugar || 0,
-  };
 };
 
 
