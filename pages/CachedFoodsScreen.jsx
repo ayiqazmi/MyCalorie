@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useLayoutEffect } from 'react';
+import React, { useState, useLayoutEffect } from 'react';
 import {
   View,
   Text,
@@ -6,102 +6,134 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
-  ImageBackground
+  ImageBackground,
+  Alert,
 } from 'react-native';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase-config';
-import background from '../assets/background.png'; // ✅ add this import at the top
+import background from '../assets/background.png';
+import { Ionicons } from '@expo/vector-icons';
+import { getAuth } from 'firebase/auth';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { format } from 'date-fns';
+
+
+const API_KEY = "wDuhwYZWD0jLgS1YfSEBPrEgjonLtLYMHDcT0Dk1";
 
 export default function CachedFoodsScreen({ navigation, route }) {
-  const [foods, setFoods] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
   const { mealType } = route.params || {};
 
   useLayoutEffect(() => {
-  navigation.setOptions({ title: 'Change Your Meal!' });
-}, [navigation]);
+    navigation.setOptions({ title: 'Search New Meal' });
+  }, [navigation]);
 
-
-useEffect(() => {
-  const fetchFoods = async () => {
+  const searchFood = async () => {
     try {
-      // Fetch USDA foods
-      const usdaSnapshot = await getDocs(collection(db, 'usdaCache'));
-      const usdaFoods = [];
-      usdaSnapshot.forEach(doc => {
-        const termFoods = doc.data().results || [];
-        usdaFoods.push(...termFoods);
-      });
-      const validUSDAs = usdaFoods.filter(food => food && food.name);
+      console.log("🔍 Searching:", searchTerm);
 
-      // Fetch Malaysian foods by category
-      const malaysianQuery = query(
-        collection(db, 'malaysianFoods'),
-        where('category', '==', mealType?.toLowerCase() || 'breakfast')
-      );
-      const malaysianSnapshot = await getDocs(malaysianQuery);
-      const malaysianFoods = malaysianSnapshot.docs.map(doc => doc.data());
+      // USDA fetch
+      const usdaResponse = await fetch(`https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${API_KEY}&query=${searchTerm}`);
+      const usdaData = await usdaResponse.json();
 
-      // Combine both
-      const allFoods = [...validUSDAs, ...malaysianFoods];
-      setFoods(allFoods);
+      const usdaResults = (usdaData.foods || []).map(food => ({
+        id: `usda-${food.fdcId}`,
+        name: food.description,
+        source: "USDA",
+        calories: food.foodNutrients?.find(n => n.nutrientName === "Energy")?.value || 0,
+        protein: food.foodNutrients?.find(n => n.nutrientName === "Protein")?.value || 0,
+        carbs: food.foodNutrients?.find(n => n.nutrientName === "Carbohydrate, by difference")?.value || 0,
+        fat: food.foodNutrients?.find(n => n.nutrientName === "Total lipid (fat)")?.value || 0,
+      }));
+
+      // Malaysian foods fetch
+      const snapshot = await getDocs(collection(db, "malaysianFoods"));
+      const malaysianResults = snapshot.docs
+        .map(doc => ({ id: `mal-${doc.id}`, ...doc.data(), source: "Malaysia" }))
+        .filter(food => food.name.toLowerCase().includes(searchTerm.toLowerCase()));
+
+      // Combine
+      const mergedResults = [...usdaResults, ...malaysianResults];
+      setSearchResults(mergedResults);
     } catch (error) {
-      console.error('Error fetching foods:', error);
+      console.error("Search error:", error);
+      Alert.alert("Error", "Failed to fetch food data.");
     }
   };
 
-  fetchFoods();
-}, [mealType]);
+const handleFoodSelect = async (food) => {
+  try {
+    const auth = getAuth();
+    const user = auth.currentUser;
+    if (!user) return;
 
+    const today = new Date();
+    const formattedDate = format(today, 'yyyy-MM-dd');
 
-  const handleFoodSelect = (food) => {
-    navigation.navigate({
-      name: 'MealPlan',
-      params: {
-        selectedFood: food,
-        mealType: route.params?.mealType || 'custom',
-      },
-      merge: true,
+    const mealPlanRef = doc(db, "users", user.uid, "mealPlans", formattedDate);
+    const mealPlanSnap = await getDoc(mealPlanRef);
+
+    let currentPlan = {};
+    if (mealPlanSnap.exists()) {
+      currentPlan = mealPlanSnap.data().plan || {};
+    }
+
+    const existingMeals = currentPlan[mealType] || [];
+
+    const updatedPlan = {
+      ...currentPlan,
+      [mealType]: [food], // ✅ overwrite the mealType with just this one food
+ // ✅ append to mealType
+    };
+
+    await setDoc(mealPlanRef, {
+      plan: updatedPlan,
+      createdAt: Date.now(),
     });
-  };
 
-  const filteredFoods = foods.filter(food =>
-    food.name?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+    navigation.navigate("MealPlan", { refresh: true });
 
-return (
-  <ImageBackground source={background} style={{ flex: 1 }} resizeMode="cover">
-    <View style={styles.overlay}>
+  } catch (err) {
+    console.error("Error updating meal plan:", err);
+  }
+};
+
+  return (
+    <ImageBackground source={background} style={{ flex: 1 }} resizeMode="cover">
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>Pick a Meal</Text>
+        <Text style={styles.title}>Search for a Food</Text>
 
         <TextInput
           style={styles.searchInput}
           placeholder="Search food..."
           placeholderTextColor="#888"
-          value={searchQuery}
-          onChangeText={setSearchQuery}
+          value={searchTerm}
+          onChangeText={setSearchTerm}
         />
+        <TouchableOpacity onPress={searchFood} style={styles.searchButton}>
+          <Text style={styles.searchButtonText}>Search</Text>
+        </TouchableOpacity>
 
-        {filteredFoods.length > 0 ? (
-          filteredFoods.map((food, index) => (
+        {searchResults.length > 0 ? (
+          searchResults.map((food, index) => (
             <TouchableOpacity key={index} onPress={() => handleFoodSelect(food)} style={styles.foodCard}>
-              <Text style={styles.foodName}>{food.name || 'Unnamed Food'}</Text>
+              <Text style={styles.foodName}>{food.name || 'Unnamed Food'} ({food.source})</Text>
               <View style={styles.nutrientsRow}>
                 <Text style={styles.nutrient}>Calories: {food.calories ?? 'N/A'} kcal</Text>
                 <Text style={styles.nutrient}>Protein: {food.protein ?? 'N/A'}g</Text>
                 <Text style={styles.nutrient}>Carbs: {food.carbs ?? 'N/A'}g</Text>
                 <Text style={styles.nutrient}>Fat: {food.fat ?? 'N/A'}g</Text>
               </View>
+              <Ionicons name="add-circle-outline" size={20} color="green" />
             </TouchableOpacity>
           ))
         ) : (
           <Text style={styles.noResult}>No foods match your search.</Text>
         )}
       </ScrollView>
-    </View>
-  </ImageBackground>
-);
+    </ImageBackground>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -120,9 +152,20 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     fontSize: 14,
-    marginBottom: 16,
+    marginBottom: 10,
     borderColor: '#ccc',
     borderWidth: 1,
+  },
+  searchButton: {
+    backgroundColor: '#6C63FF',
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  searchButtonText: {
+    color: '#fff',
+    fontWeight: '600',
   },
   foodCard: {
     backgroundColor: '#fff',
@@ -134,12 +177,17 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 4,
     elevation: 2,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 8,
   },
   foodName: {
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
     marginBottom: 6,
+    flex: 1,
   },
   nutrientsRow: {
     flexDirection: 'column',

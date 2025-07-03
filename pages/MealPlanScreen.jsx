@@ -21,6 +21,8 @@ export default function MealPlanScreen({ route, navigation }) {
     useLayoutEffect(() => {
     navigation.setOptions({ title: 'Your Meal Plan' });
   }, [navigation]);
+
+  
 useFocusEffect(
   useCallback(() => {
     const updateFromParams = async () => {
@@ -84,7 +86,6 @@ useEffect(() => {
 
       const userDocRef = doc(db, 'users', currentUser.uid);
       const userSnap = await getDoc(userDocRef);
-
       if (!userSnap.exists()) return;
 
       const userData = userSnap.data();
@@ -106,39 +107,19 @@ useEffect(() => {
         const mealDocRef = doc(db, 'users', currentUser.uid, 'mealPlans', formatted);
         const cached = await getDoc(mealDocRef);
 
-if (cached.exists()) {
-  const docData = cached.data();
-  const lastGenerated = new Date(docData.createdAt || docData.updatedAt || 0);
-  const isToday = format(lastGenerated, 'yyyy-MM-dd') === format(targetDate, 'yyyy-MM-dd');
-
-  if (isToday) {
-    // Use cached plan for today
-    weekPlans[formatted] = docData.plan;
-  } else {
-    // Regenerate for a new day
-    const plan = await generateMealPlan(userProfile, targetDate.getTime());
-    weekPlans[formatted] = plan;
-    await setDoc(mealDocRef, {
-      plan,
-      createdAt: new Date().toISOString(),
-    });
-  }
-} else {
-  const plan = await generateMealPlan(userProfile, targetDate.getTime());
-  weekPlans[formatted] = plan;
-  await setDoc(mealDocRef, {
-    plan,
-    createdAt: new Date().toISOString(),
-  });
-}
-
+        if (cached.exists()) {
+          weekPlans[formatted] = cached.data().plan;
+        } else {
+          const { plan, createdAt } = await generateMealPlan(userProfile, targetDate.getTime());
+          await setDoc(mealDocRef, { plan, createdAt });
+          weekPlans[formatted] = plan;
+        }
       }
 
       const todayFormatted = format(today, 'yyyy-MM-dd');
-      setMealPlan(weekPlans[todayFormatted]); // Show today's by default
-
+      setMealPlan(weekPlans[todayFormatted]);
     } catch (err) {
-      console.error('7-Day plan error:', err);
+      console.error('Failed to load/generate meal plans:', err);
       setMealPlan(null);
     } finally {
       setLoading(false);
@@ -147,6 +128,7 @@ if (cached.exists()) {
 
   fetchOrGenerateWeekPlan();
 }, []);
+
 
 const regenerateTodayPlan = async () => {
   setLoading(true);
@@ -169,13 +151,13 @@ const regenerateTodayPlan = async () => {
       caloriesGoal: userData.targetCalories || 2000,
     };
 
-    const newPlan = await generateMealPlan(userProfile, Date.now());
-    await setDoc(doc(db, 'users', currentUser.uid, 'mealPlans', dateKey), {
-      plan: newPlan,
-      createdAt: new Date().toISOString(),
-    });
+    const { plan, createdAt } = await generateMealPlan(userProfile, Date.now());
+await setDoc(doc(db, 'users', currentUser.uid, 'mealPlans', dateKey), {
+  plan,
+  createdAt,
+});
+setMealPlan(plan);
 
-    setMealPlan(newPlan);
     setSelectedDate(today);
   } catch (error) {
     console.error('Error regenerating plan:', error);
@@ -185,19 +167,53 @@ const regenerateTodayPlan = async () => {
 };
 
 
-const loadMealPlan = async (targetDate = selectedDate) => {
-  const userId = getAuth().currentUser.uid;
-  const dateKey = format(targetDate, 'yyyy-MM-dd');
-  const docRef = doc(db, 'users', userId, 'mealPlans', dateKey); // NOTE: this was 'meals' in old version, fix if needed
-  const docSnap = await getDoc(docRef);
+const fetchOrGenerateMealPlan = async (targetDate = selectedDate) => {
+  setLoading(true);
+  try {
+    const auth = getAuth();
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
 
-  if (docSnap.exists()) {
-    setMealPlan(docSnap.data().plan);
-    setSelectedDate(targetDate); // 👈 update UI selection
-  } else {
+    const userDocRef = doc(db, 'users', currentUser.uid);
+    const userSnap = await getDoc(userDocRef);
+    if (!userSnap.exists()) return;
+
+    const userData = userSnap.data();
+    const userProfile = {
+      allergies: userData.allergies || [],
+      healthComplications: userData.healthComplications || [],
+      healthGoal: userData.healthGoal || 'maintain',
+      caloriesGoal: userData.targetCalories || 2000,
+    };
+
+    const dateKey = format(targetDate, 'yyyy-MM-dd');
+    const mealDocRef = doc(db, 'users', currentUser.uid, 'mealPlans', dateKey);
+    const docSnap = await getDoc(mealDocRef);
+
+    if (docSnap.exists()) {
+      setMealPlan(docSnap.data().plan);
+    } else {
+      const { plan, createdAt } = await generateMealPlan(userProfile, targetDate.getTime());
+      await setDoc(mealDocRef, { plan, createdAt });
+      setMealPlan(plan);
+    }
+
+    setSelectedDate(targetDate);
+  } catch (err) {
+    console.error('Failed to fetch/generate meal plan for day:', err);
     setMealPlan(null);
+  } finally {
+    setLoading(false);
   }
 };
+
+useFocusEffect(
+  useCallback(() => {
+    fetchOrGenerateMealPlan(); // Always fetch latest when screen is focused
+  }, [])
+);
+
+
 
 
 const renderMeal = (mealType, items) => {
@@ -270,20 +286,8 @@ return (
               <TouchableOpacity
                 key={i}
                 style={[styles.dayCircle, isSelected && styles.dayCircleSelected]}
-                onPress={async () => {
-                  setLoading(true);
-                  const auth = getAuth();
-                  const user = auth.currentUser;
-                  const mealDocRef = doc(db, 'users', user.uid, 'mealPlans', dateKey);
-                  const snap = await getDoc(mealDocRef);
-                  if (snap.exists()) {
-                    setMealPlan(snap.data().plan);
-                    setSelectedDate(date);
-                  } else {
-                    setMealPlan(null);
-                  }
-                  setLoading(false);
-                }}
+                onPress={() => fetchOrGenerateMealPlan(date)}
+
               >
                 <Text style={[styles.dayText, isSelected && styles.dayTextSelected]}>{day}</Text>
                 <Text style={[styles.dateLabel, isSelected && styles.dayTextSelected]}>

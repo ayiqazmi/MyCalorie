@@ -128,10 +128,16 @@ filteredFoods = shuffleArrayWithSeed(filteredFoods, variantKey);
     return meal;
   };
 
-  return {
-    breakfast: generateSmartMeal(filteredFoods, mealTargets.breakfast),
-    lunch: generateSmartMeal(filteredFoods, mealTargets.lunch),
-    dinner: generateSmartMeal(filteredFoods, mealTargets.dinner),
-    snacks: generateSmartMeal(filteredFoods, mealTargets.snacks),
-  };
+  const plan = {
+  breakfast: generateSmartMeal(filteredFoods, mealTargets.breakfast),
+  lunch: generateSmartMeal(filteredFoods, mealTargets.lunch),
+  dinner: generateSmartMeal(filteredFoods, mealTargets.dinner),
+  snacks: generateSmartMeal(filteredFoods, mealTargets.snacks),
+};
+
+return {
+  plan,
+  createdAt: new Date().toISOString()
+};
+
 }
