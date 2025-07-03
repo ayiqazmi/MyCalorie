@@ -1,6 +1,33 @@
-# 🔒 Ignore secrets and sensitive files
+# Node modules and logs
+node_modules/
+npm-debug.log
+yarn-debug.log
+
+# Expo & EAS
+.expo/
+.expo-shared/
+build/
+dist/
+.eas/
+
+# Android/iOS build
+android/app/build/
+ios/build/
+
+# Firebase hosting & config
+.firebase/
+.firebaserc
+firebase.json
+storage.rules
+firestore.rules
+firestore.indexes.json
+
+# Environment files
 .env
-*.json
-assets/data/
-utils/
-functions/index.js
+functions/.env
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
