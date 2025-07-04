@@ -41,7 +41,13 @@ import { onAuthStateChanged, applyActionCode } from 'firebase/auth';
 import linking from './utils/LinkingConfiguration';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from './config/firebase-config';
+import { LogBox } from 'react-native';
 
+// Ignore log notification by message
+LogBox.ignoreLogs(['Warning: ...']);
+
+//Ignore all log notifications
+LogBox.ignoreAllLogs();
 const Stack = createNativeStackNavigator();
 
 export default function App() {

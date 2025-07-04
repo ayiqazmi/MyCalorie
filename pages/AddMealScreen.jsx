@@ -280,6 +280,7 @@ export default function AddMealScreen() {
               }}
             >
               <Text style={styles.buttonText}>{type}</Text>
+              
             </TouchableOpacity>
           ))}
         </View>
@@ -291,32 +292,153 @@ export default function AddMealScreen() {
           <Text style={styles.buttonText}>Can't find your food? Add it manually</Text>
         </TouchableOpacity>
 
-        <FlatList
-          data={searchResults}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => {
-            const data = prepareFoodData(item) || {};
-            return (
-              <TouchableOpacity
-                onPress={() => {
-                  setSelectedFood(item);
-                  setShowModal(true);
-                }}
-                style={styles.resultItem}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontWeight: "bold" }}>
-                    {item.name} ({item.source})
-                  </Text>
-                  <Text>
-                    Calories: {data.calories} kcal | Protein: {data.protein} g | Carbs: {data.carbs} g | Fats: {data.fats} g
-                  </Text>
-                </View>
-                <Ionicons name="add-circle-outline" size={24} color="green" />
-              </TouchableOpacity>
-            );
-          }}
+           <FlatList
+        data={searchResults}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => {
+          const data = prepareFoodData(item);
+          return (
+            <TouchableOpacity
+              onPress={() => { setSelectedFood(item); setShowModal(true); }}
+              style={styles.resultItem}
+
+
+
+
+
+
+
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontWeight: "bold" }}>{item.name} ({item.source})</Text>
+                <Text>
+                  Calories: {data.calories} kcal | Protein: {data.protein} g | Carbs: {data.carbs} g | Fats: {data.fats} g
+                </Text>
+              </View>
+              <Ionicons name="add-circle-outline" size={24} color="green" />
+            </TouchableOpacity>
+          );
+        }}
+       ListFooterComponent={
+  <View style={{ marginTop: 20 }}>
+    
+    {/* Card 1: Meals Added for Selected Meal Type */}
+    <View style={styles.footerCard}>
+      <Text style={styles.footerTitle}>{mealType.toUpperCase()} – Today's Meals</Text>
+      {mealsToday[mealType]?.items?.length > 0 ? (
+        mealsToday[mealType].items.map((item, index) => (
+          <View key={index} style={styles.mealItem}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.mealName}>{item.name}</Text>
+              <Text style={styles.nutrientText}>Calories: {item.calories} kcal</Text>
+              <Text style={styles.nutrientText}>Protein: {item.protein} g</Text>
+              <Text style={styles.nutrientText}>Carbs: {item.carbs} g</Text>
+              <Text style={styles.nutrientText}>Fats: {item.fats} g</Text>
+              <Text style={styles.nutrientText}>Vitamin C: {item.vitaminC} mg</Text>
+              <Text style={styles.nutrientText}>Calcium: {item.calcium} mg</Text>
+              <Text style={styles.nutrientText}>Iron: {item.iron} mg</Text>
+              <Text style={styles.nutrientText}>Potassium: {item.potassium} mg</Text>
+              <Text style={styles.nutrientText}>Fiber: {item.fiber} g</Text>
+              <Text style={styles.nutrientText}>Sugar: {item.sugar} g</Text>
+            </View>
+            <TouchableOpacity onPress={() => handleDeleteMeal(item, mealType, index)} style={{ paddingLeft: 10 }}>
+              <Ionicons name="trash-outline" size={24} color="red" />
+            </TouchableOpacity>
+          </View>
+        ))
+      ) : (
+        <Text style={styles.nutrientText}>No meals added for {mealType} yet.</Text>
+      )}
+    </View>
+
+    {/* Card 2: Daily Total Nutrients */}
+    <View style={styles.footerCard}>
+      <Text style={styles.footerTitle}>Today's Total Intake</Text>
+      <Text style={styles.nutrientText}>Calories: {totals.calories.toFixed(0)} kcal</Text>
+      <Text style={styles.nutrientText}>Protein: {totals.protein.toFixed(1)} g</Text>
+      <Text style={styles.nutrientText}>Carbs: {totals.carbs.toFixed(1)} g</Text>
+      <Text style={styles.nutrientText}>Fats: {totals.fats.toFixed(1)} g</Text>
+      <Text style={styles.microsText}>
+        Vitamin C: {totals.vitaminC.toFixed(1)} mg  •  Calcium: {totals.calcium.toFixed(1)} mg  •  Iron: {totals.iron.toFixed(1)} mg
+      </Text>
+      <Text style={styles.microsText}>
+        Potassium: {totals.potassium.toFixed(1)} mg  •  Fiber: {totals.fiber.toFixed(1)} g  •  Sugar: {totals.sugar.toFixed(1)} g
+      </Text>
+    </View>
+    
+  </View>
+}
+
+      />
+
+      <Modal visible={showModal} transparent animationType="slide">
+        <View style={styles.modalBackground}>
+          <View style={styles.modalContainer}>
+            <ScrollView>
+              {selectedFood && (
+                <>
+                  <Text style={styles.modalTitle}>{selectedFood.description}</Text>
+                  {Object.entries(prepareFoodData(selectedFood)).map(([key, value]) => (
+                    key !== "name" && <Text key={key}>{`${key}: ${value}`}</Text>
+                  ))}
+                </>
+              )}
+              <View style={styles.modalButtons}>
+                <TouchableOpacity onPress={confirmAddMeal} style={styles.modalButton}>
+                  <Text style={styles.buttonText}>Confirm</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setShowModal(false)} style={[styles.modalButton, { backgroundColor: "grey" }]}>
+                  <Text style={styles.buttonText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+        <Modal visible={showCustomModal} transparent animationType="slide">
+  <View style={styles.modalBackground}>
+  <View style={[styles.modalContainer, { maxHeight: '80%' }]}>
+    <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
+      <Text style={styles.modalTitle}>Submit Custom Food</Text>
+      {Object.keys(customFood).map((key) => (
+        <TextInput
+          key={key}
+          placeholder={key}
+          value={customFood[key]}
+          onChangeText={(text) => setCustomFood({ ...customFood, [key]: text })}
+          style={styles.input}
+          keyboardType={["name"].includes(key) ? "default" : "numeric"}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         />
+      ))}
+      <TouchableOpacity onPress={submitCustomFood} style={styles.modalButton}>
+        <Text style={styles.buttonText}>Submit</Text>
+      </TouchableOpacity>
+      <TouchableOpacity onPress={() => setShowCustomModal(false)} style={[styles.modalButton, { backgroundColor: "grey" }]}>
+        <Text style={styles.buttonText}>Cancel</Text>
+      </TouchableOpacity>
+     </ScrollView>
+  </View>
+</View>
+</Modal>
       </ScrollView>
     </ImageBackground>
   );
