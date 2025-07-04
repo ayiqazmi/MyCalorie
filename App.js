@@ -8,6 +8,9 @@ import { Feather, Ionicons } from '@expo/vector-icons';
 import { View, ActivityIndicator, Linking, Alert } from 'react-native';
 import * as LinkingExpo from 'expo-linking';
 import { getInitialState } from '@react-navigation/native';
+import Toast from 'react-native-toast-message';
+import { BaseToast } from 'react-native-toast-message';
+
 
 import LoginScreen from './pages/auth/LoginScreen';
 import RegisterScreen from './pages/auth/RegisterScreen';
@@ -165,6 +168,26 @@ useEffect(() => {
   ref={navigationRef}
   onReady={() => setNavIsReady(true)} // ✅ flag that navigator is ready
 >
+<Toast
+  config={{
+    success: (props) => (
+      <BaseToast
+        {...props}
+        style={{ borderLeftColor: '#6C63FF' }}
+        contentContainerStyle={{ paddingHorizontal: 15 }}
+        text1Style={{
+          fontSize: 15,
+          fontWeight: 'bold',
+        }}
+        text2Style={{
+          fontSize: 13,
+          color: '#333',
+        }}
+      />
+    ),
+  }}
+/>
+
 
       <Stack.Navigator initialRouteName={getInitialRoute()}>
         {user ? (

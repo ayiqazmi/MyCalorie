@@ -18,6 +18,8 @@ import { generateMealPlan } from '../utils/generateMealPlan';
 import background from '../assets/background.png';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
+import Toast from 'react-native-toast-message';
+  
 
 const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -31,53 +33,64 @@ export default function MealPlanScreen({ route, navigation }) {
   }, [navigation]);
 
   // ✅ Handle updated meals from other screen
-  useFocusEffect(
-    useCallback(() => {
-      const updateFromParams = async () => {
-        const { updatedMeal, updatedMealType, updatedDate } = route.params || {};
-        if (updatedMeal && updatedMealType && updatedDate) {
-          const auth = getAuth();
-          const currentUser = auth.currentUser;
-          if (!currentUser) return;
+useFocusEffect(
+  useCallback(() => {
+    const updateFromParams = async () => {
+      const { updatedMeal, updatedMealType, updatedDate, refresh } = route.params || {};
+      const auth = getAuth();
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
 
-          const parsedDate = new Date(updatedDate);
-          const dateKey = format(parsedDate, 'yyyy-MM-dd');
-          const mealDocRef = doc(db, 'users', currentUser.uid, 'mealPlans', dateKey);
-          const existing = await getDoc(mealDocRef);
+      if (updatedMeal && updatedMealType && updatedDate) {
+        const parsedDate = new Date(updatedDate);
+        const dateKey = format(parsedDate, 'yyyy-MM-dd');
+        const mealDocRef = doc(db, 'users', currentUser.uid, 'mealPlans', dateKey);
+        const existing = await getDoc(mealDocRef);
 
-          let updatedPlan = {};
-          if (existing.exists()) {
-            const oldPlan = existing.data().plan || {};
-            updatedPlan = {
-              ...oldPlan,
-              [updatedMealType]: [updatedMeal],
-            };
-          } else {
-            updatedPlan = {
-              [updatedMealType]: [updatedMeal],
-            };
-          }
-
-          await setDoc(mealDocRef, {
-            plan: updatedPlan,
-            updatedAt: new Date().toISOString(),
-          });
-
-          setMealPlan(updatedPlan);
-          setSelectedDate(parsedDate);
-
-          // Clear params
-          navigation.setParams({
-            updatedMeal: undefined,
-            updatedMealType: undefined,
-            updatedDate: undefined,
-          });
+        let updatedPlan = {};
+        if (existing.exists()) {
+          const oldPlan = existing.data().plan || {};
+          updatedPlan = {
+            ...oldPlan,
+            [updatedMealType]: [updatedMeal],
+          };
+        } else {
+          updatedPlan = {
+            [updatedMealType]: [updatedMeal],
+          };
         }
-      };
 
-      updateFromParams();
-    }, [route.params])
-  );
+        await setDoc(mealDocRef, {
+          plan: updatedPlan,
+          updatedAt: new Date().toISOString(),
+        });
+
+        setMealPlan(updatedPlan);
+        setSelectedDate(parsedDate);
+
+        // Clear the params
+        navigation.setParams({
+          updatedMeal: undefined,
+          updatedMealType: undefined,
+          updatedDate: undefined,
+          refresh: undefined,
+        });
+     } else if (refresh) {
+  await fetchOrGenerateMealPlan(selectedDate);
+  Toast.show({
+    type: 'success',
+    text1: 'Meal Updated',
+    text2: 'Your new meal has been saved 🍽️',
+  });
+  navigation.setParams({ refresh: undefined });
+}
+
+    };
+
+    updateFromParams();
+  }, [route.params, selectedDate])
+);
+
 
   // ✅ Initial load
   useEffect(() => {
