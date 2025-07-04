@@ -7,25 +7,67 @@ import {
   ActivityIndicator,
   StyleSheet,
   ImageBackground,
+  TouchableOpacity,
 } from 'react-native';
 import { getRecipeDetails } from '../utils/spoonacular';
 import background from '../assets/background.png';
 
-export default function RecipeScreen({ route }) {
+export default function RecipeScreen({ route, navigation }) {
   const { query } = route.params;
   const [recipe, setRecipe] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [suggestions, setSuggestions] = useState([]);
 
   useEffect(() => {
     async function fetchRecipe() {
-      try {
-        const spoonData = await getRecipeDetails(query);
-        if (!spoonData) throw new Error("No recipe found");
+      setRecipe(null);
+      setSuggestions([]);
+      setLoading(true);
 
-        setRecipe({ ...spoonData, source: "Spoonacular" });
+      try {
+        // Try Spoonacular
+        const spoonData = await getRecipeDetails(query);
+        if (spoonData) {
+          setRecipe({ ...spoonData, source: "Spoonacular" });
+          return;
+        }
+
+        // AskMealAI fallback
+        const response = await fetch("https://us-central1-my-calorie-fyp.cloudfunctions.net/askMealAI", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: query }),
+        });
+
+        const raw = await response.text();
+        let data;
+        try {
+          data = JSON.parse(raw);
+        } catch (e) {
+          console.warn("[RecipeScreen] AskMealAI JSON parse error:", e);
+          throw new Error("Invalid response from AskMealAI");
+        }
+
+        if (data?.title) {
+          setRecipe({
+            title: data.title,
+            image: data.image || `https://source.unsplash.com/600x400/?food,${encodeURIComponent(query)}`,
+            readyInMinutes: data.readyInMinutes || null,
+            servings: data.servings || null,
+            instructions: data.instructions || data.steps || "No instructions provided.",
+            source: "AskMealAI",
+          });
+          return;
+        }
+
+        // Get fallback food names
+        const suggestRes = await fetch(`https://api.spoonacular.com/recipes/complexSearch?query=${encodeURIComponent(query)}&number=5&apiKey=YOUR_SPOONACULAR_API_KEY`);
+        const suggestData = await suggestRes.json();
+        if (suggestData?.results?.length) {
+          setSuggestions(suggestData.results.map(r => r.title));
+        }
       } catch (err) {
         console.warn(`[RecipeScreen] Failed to get recipe for "${query}":`, err.message);
-        setRecipe(null);
       } finally {
         setLoading(false);
       }
@@ -65,10 +107,27 @@ export default function RecipeScreen({ route }) {
     );
   }
 
-  if (!recipe) {
+  if (!recipe && suggestions.length === 0) {
     return (
       <View style={styles.loaderContainer}>
         <Text style={styles.notFound}>No recipe found for "{query}"</Text>
+      </View>
+    );
+  }
+
+  if (!recipe && suggestions.length > 0) {
+    return (
+      <View style={styles.loaderContainer}>
+        <Text style={styles.notFound}>No exact recipe found for "{query}".</Text>
+        <Text style={{ fontWeight: 'bold', marginTop: 10 }}>Did you mean:</Text>
+        {suggestions.map((title, index) => (
+          <TouchableOpacity
+            key={index}
+            onPress={() => navigation.replace('RecipeScreen', { query: title })}
+          >
+            <Text style={{ color: '#6C63FF', marginTop: 4 }}>{title}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
     );
   }
@@ -85,7 +144,7 @@ export default function RecipeScreen({ route }) {
         </Text>
 
         <Text style={styles.instructionHeader}>📋 Instructions</Text>
-        {renderInstructions(recipe.instructions || "No instructions provided.")}
+        {renderInstructions(recipe.instructions)}
       </ScrollView>
     </ImageBackground>
   );

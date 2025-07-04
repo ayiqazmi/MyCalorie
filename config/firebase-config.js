@@ -11,7 +11,7 @@ const firebaseConfig = {
   apiKey: 'AIzaSyBvc4-Eu2XbzAfvUR-ly4oEVxqcxTNbr9M',
   authDomain: 'my-calorie-fyp.firebaseapp.com',
   projectId: 'my-calorie-fyp',
-  storageBucket: 'my-calorie-fyp.appspot.com',
+  storageBucket: 'my-calorie-fyp.firebasestorage.app',
   messagingSenderId: '952183755976',
   appId: '1:952183755976:web:9ce913600aa79cf71501fd',
   measurementId: 'G-NPDB29MLL1',

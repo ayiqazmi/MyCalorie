@@ -1,18 +1,51 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, Alert, Modal, ScrollView } from "react-native";
-import { getDocs, collection, getFirestore, doc, getDoc, setDoc, updateDoc, arrayUnion, increment, deleteField, onSnapshot } from "firebase/firestore";
-import { auth, db } from "../config/firebase-config.js";
+import {
+  View,
+  Text,
+  TextInput,
+  FlatList,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  Modal,
+  ScrollView,
+  ImageBackground,
+} from "react-native";
+import {
+  getDocs,
+  collection,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  arrayUnion,
+  increment,
+  deleteField,
+  onSnapshot,
+} from "firebase/firestore";
+import { auth, db } from "../config/firebase-config";
 import { Ionicons } from "@expo/vector-icons";
-import { ImageBackground } from "react-native";
-import background from "../assets/background.png"; // ✅ Make sure this exists
-
+import background from "../assets/background.png";
 
 const API_KEY = "wDuhwYZWD0jLgS1YfSEBPrEgjonLtLYMHDcT0Dk1";
 
+// ---------- Calculate total nutrients for the day ----------
 const calculateTotals = (mealsToday) => {
-  const totals = { calories: 0, protein: 0, carbs: 0, fats: 0, vitaminC: 0, calcium: 0, iron: 0, potassium: 0, fiber: 0, sugar: 0 };
-  Object.values(mealsToday).forEach(mealTypeData => {
-    mealTypeData.items?.forEach(item => {
+  const totals = {
+    calories: 0,
+    protein: 0,
+    carbs: 0,
+    fats: 0,
+    vitaminC: 0,
+    calcium: 0,
+    iron: 0,
+    potassium: 0,
+    fiber: 0,
+    sugar: 0,
+  };
+
+  Object.values(mealsToday).forEach((mealTypeData) => {
+    mealTypeData.items?.forEach((item) => {
       totals.calories += item.calories || 0;
       totals.protein += item.protein || 0;
       totals.carbs += item.carbs || 0;
@@ -25,7 +58,42 @@ const calculateTotals = (mealsToday) => {
       totals.sugar += item.sugar || 0;
     });
   });
+
   return totals;
+};
+
+// ---------- Prepare food for DB or display ----------
+const prepareFoodData = (food = {}) => {
+  const base = {
+    name: food.name || food.description || "Unnamed food",
+    calories: Number(food.calories) || 0,
+    protein: Number(food.protein) || 0,
+    carbs: Number(food.carbs) || 0,
+    fats: Number(food.fats) || 0,
+    vitaminC: Number(food.vitaminC) || 0,
+    calcium: Number(food.calcium) || 0,
+    iron: Number(food.iron) || 0,
+    potassium: Number(food.potassium) || 0,
+    fiber: Number(food.fiber) || 0,
+    sugar: Number(food.sugar) || 0,
+  };
+
+  if (food.source === "USDA") {
+    const find = (name) =>
+      Number(food.foodNutrients?.find((n) => n.nutrientName === name)?.value) || 0;
+
+    return {
+      ...base,
+      vitaminC: find("Vitamin C, total ascorbic acid"),
+      calcium: find("Calcium, Ca"),
+      iron: find("Iron, Fe"),
+      potassium: find("Potassium, K"),
+      fiber: find("Fiber, total dietary"),
+      sugar: find("Sugars, total including NLEA"),
+    };
+  }
+
+  return base;
 };
 
 export default function AddMealScreen() {
@@ -36,10 +104,19 @@ export default function AddMealScreen() {
   const [selectedFood, setSelectedFood] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [showCustomModal, setShowCustomModal] = useState(false);
-const [customFood, setCustomFood] = useState({
-  name: "", calories: "", protein: "", carbs: "", fats: "",
-  vitaminC: "", calcium: "", iron: "", potassium: "", fiber: "", sugar: ""
-});
+  const [customFood, setCustomFood] = useState({
+    name: "",
+    calories: "",
+    protein: "",
+    carbs: "",
+    fats: "",
+    vitaminC: "",
+    calcium: "",
+    iron: "",
+    potassium: "",
+    fiber: "",
+    sugar: "",
+  });
 
   const user = auth.currentUser;
   const totals = calculateTotals(mealsToday);
@@ -57,77 +134,65 @@ const [customFood, setCustomFood] = useState({
   }, []);
 
   const submitCustomFood = async () => {
-  try {
-    const docRef = doc(db, "customFoodsPending", `${user.uid}_${Date.now()}`);
-    await setDoc(docRef, {
-      ...customFood,
-      userId: user.uid,
-      status: "pending",
-      submittedAt: new Date().toISOString(),
-    });
-    Alert.alert("Submitted", "Your meal will appear once approved by admin.");
-    setShowCustomModal(false);
-    setCustomFood({ name: "", calories: "", protein: "", carbs: "", fats: "", vitaminC: "", calcium: "", iron: "", potassium: "", fiber: "", sugar: "" });
-  } catch (err) {
-    console.error("Custom food error:", err);
-    Alert.alert("Error", "Failed to submit custom food.");
-  }
-};
+    try {
+      const docRef = doc(db, "customFoodsPending", `${user.uid}_${Date.now()}`);
+      await setDoc(docRef, {
+        ...prepareFoodData(customFood),
+        userId: user.uid,
+        status: "pending",
+        submittedAt: new Date().toISOString(),
+      });
+      Alert.alert("Submitted", "Your meal will appear once approved by admin.");
+      setShowCustomModal(false);
+      setCustomFood({
+        name: "",
+        calories: "",
+        protein: "",
+        carbs: "",
+        fats: "",
+        vitaminC: "",
+        calcium: "",
+        iron: "",
+        potassium: "",
+        fiber: "",
+        sugar: "",
+      });
+    } catch (err) {
+      console.error("Custom food error:", err);
+      Alert.alert("Error", "Failed to submit custom food.");
+    }
+  };
 
-const searchFood = async () => {
-  try {
-    console.log("🔍 Searching:", searchTerm);
+  const searchFood = async () => {
+    try {
+      console.log("🔍 Searching:", searchTerm);
+      const usdaResponse = await fetch(
+        `https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${API_KEY}&query=${searchTerm}`
+      );
+      const usdaData = await usdaResponse.json();
 
-    // USDA fetch
-    const usdaResponse = await fetch(`https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${API_KEY}&query=${searchTerm}`);
-    const usdaData = await usdaResponse.json();
+      const usdaResults = (usdaData.foods || []).map((food) => ({
+        id: `usda-${food.fdcId}`,
+        name: food.description,
+        source: "USDA",
+        calories: food.foodNutrients?.find((n) => n.nutrientName === "Energy")?.value || 0,
+        protein: food.foodNutrients?.find((n) => n.nutrientName === "Protein")?.value || 0,
+        carbs: food.foodNutrients?.find((n) => n.nutrientName === "Carbohydrate, by difference")?.value || 0,
+        fats: food.foodNutrients?.find((n) => n.nutrientName === "Total lipid (fat)")?.value || 0,
+        foodNutrients: food.foodNutrients || [],
+      }));
 
-    const usdaResults = (usdaData.foods || []).map(food => ({
-      id: `usda-${food.fdcId}`,
-      name: food.description,
-      source: "USDA",
-      calories: food.foodNutrients?.find(n => n.nutrientName === "Energy")?.value || 0,
-      protein: food.foodNutrients?.find(n => n.nutrientName === "Protein")?.value || 0,
-      carbs: food.foodNutrients?.find(n => n.nutrientName === "Carbohydrate, by difference")?.value || 0,
-      fats: food.foodNutrients?.find(n => n.nutrientName === "Total lipid (fat)")?.value || 0,
-      foodNutrients: food.foodNutrients || [],
-    }));
+      const snapshot = await getDocs(collection(db, "malaysianFoods"));
+      const malaysianResults = snapshot.docs
+        .map((doc) => ({ id: `mal-${doc.id}`, ...doc.data(), source: "Malaysia" }))
+        .filter((food) => food.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
-    // Malaysian Foods Firestore fetch
-    const snapshot = await getDocs(collection(db, "malaysianFoods"));
-    const malaysianResults = snapshot.docs
-      .map(doc => ({ id: `mal-${doc.id}`, ...doc.data(), source: "Malaysia" }))
-      .filter(food => food.name.toLowerCase().includes(searchTerm.toLowerCase()));
-
-    // Merge results
-    const mergedResults = [...usdaResults, ...malaysianResults];
-    setSearchResults(mergedResults);
-  } catch (error) {
-    console.error("Search error:", error);
-    Alert.alert("Error", "Failed to fetch food data.");
-  }
-};
-
-
-const prepareFoodData = (food) => {
-  // USDA format
-  if (food.source === "USDA") {
-    return {
-      name: food.name,
-      calories: food.calories || 0,
-      protein: food.protein || 0,
-      carbs: food.carbs || 0,
-      fats: food.fats || 0,
-      vitaminC: food.foodNutrients?.find(n => n.nutrientName === "Vitamin C, total ascorbic acid")?.value || 0,
-      calcium: food.foodNutrients?.find(n => n.nutrientName === "Calcium, Ca")?.value || 0,
-      iron: food.foodNutrients?.find(n => n.nutrientName === "Iron, Fe")?.value || 0,
-      potassium: food.foodNutrients?.find(n => n.nutrientName === "Potassium, K")?.value || 0,
-      fiber: food.foodNutrients?.find(n => n.nutrientName === "Fiber, total dietary")?.value || 0,
-      sugar: food.foodNutrients?.find(n => n.nutrientName === "Sugars, total including NLEA")?.value || 0,
-    };
-  }
-};
-
+      setSearchResults([...usdaResults, ...malaysianResults]);
+    } catch (error) {
+      console.error("Search error:", error);
+      Alert.alert("Error", "Failed to fetch food data.");
+    }
+  };
 
   const confirmAddMeal = async () => {
     if (!user || !selectedFood) return;
@@ -167,7 +232,10 @@ const prepareFoodData = (food) => {
 
       const data = mealDoc.data();
       const updatedItems = (data[mealType]?.items || []).filter((_, i) => i !== index);
-      const updatedTotalCalories = updatedItems.reduce((sum, item) => sum + (item.calories || 0), 0);
+      const updatedTotalCalories = updatedItems.reduce(
+        (sum, item) => sum + (item.calories || 0),
+        0
+      );
 
       if (updatedItems.length === 0) {
         await updateDoc(mealRef, { [mealType]: deleteField() });
@@ -185,37 +253,46 @@ const prepareFoodData = (food) => {
 
   return (
     <ImageBackground source={background} style={{ flex: 1 }} resizeMode="cover">
-    <ScrollView contentContainerStyle={styles.overlay}>
-      <Text style={styles.header}>Add Meal</Text>
+      <ScrollView contentContainerStyle={styles.overlay}>
+        <Text style={styles.header}>Add Meal</Text>
 
-      <TextInput
-        placeholder="Search food..."
-        value={searchTerm}
-        onChangeText={setSearchTerm}
-        style={styles.input}
-      />
-      <TouchableOpacity onPress={searchFood} style={styles.button}>
-        <Text style={styles.buttonText}>Search</Text>
-      </TouchableOpacity>
+        <TextInput
+          placeholder="Search food..."
+          value={searchTerm}
+          onChangeText={setSearchTerm}
+          style={styles.input}
+        />
+        <TouchableOpacity onPress={searchFood} style={styles.button}>
+          <Text style={styles.buttonText}>Search</Text>
+        </TouchableOpacity>
 
-      <View style={styles.mealTypeContainer}>
-        {["breakfast", "lunch", "dinner", "snacks"].map(type => (
-          <TouchableOpacity
-            key={type}
-            style={[styles.mealTypeButton, mealType === type && styles.selectedMealType]}
-            onPress={() => { setMealType(type); setSearchResults([]); }}
-          >
-            <Text style={styles.buttonText}>{type}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+        <View style={styles.mealTypeContainer}>
+          {["breakfast", "lunch", "dinner", "snacks"].map((type) => (
+            <TouchableOpacity
+              key={type}
+              style={[
+                styles.mealTypeButton,
+                mealType === type && styles.selectedMealType,
+              ]}
+              onPress={() => {
+                setMealType(type);
+                setSearchResults([]);
+              }}
+            >
+              <Text style={styles.buttonText}>{type}</Text>
+              
+            </TouchableOpacity>
+          ))}
+        </View>
 
-      <TouchableOpacity onPress={() => setShowCustomModal(true)} style={styles.button}>
-  <Text style={styles.buttonText}>Can't find your food? Add it manually</Text>
-</TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => setShowCustomModal(true)}
+          style={styles.button}
+        >
+          <Text style={styles.buttonText}>Can't find your food? Add it manually</Text>
+        </TouchableOpacity>
 
-
-      <FlatList
+           <FlatList
         data={searchResults}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => {
@@ -224,6 +301,13 @@ const prepareFoodData = (food) => {
             <TouchableOpacity
               onPress={() => { setSelectedFood(item); setShowModal(true); }}
               style={styles.resultItem}
+
+
+
+
+
+
+
             >
               <View style={{ flex: 1 }}>
                 <Text style={{ fontWeight: "bold" }}>{item.name} ({item.source})</Text>
@@ -312,7 +396,7 @@ const prepareFoodData = (food) => {
         </View>
       </Modal>
 
-      <Modal visible={showCustomModal} transparent animationType="slide">
+        <Modal visible={showCustomModal} transparent animationType="slide">
   <View style={styles.modalBackground}>
   <View style={[styles.modalContainer, { maxHeight: '80%' }]}>
     <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
@@ -325,6 +409,24 @@ const prepareFoodData = (food) => {
           onChangeText={(text) => setCustomFood({ ...customFood, [key]: text })}
           style={styles.input}
           keyboardType={["name"].includes(key) ? "default" : "numeric"}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         />
       ))}
       <TouchableOpacity onPress={submitCustomFood} style={styles.modalButton}>
@@ -337,11 +439,11 @@ const prepareFoodData = (food) => {
   </View>
 </View>
 </Modal>
-
-    </ScrollView>
+      </ScrollView>
     </ImageBackground>
   );
 }
+
 
 const styles = StyleSheet.create({
   overlay: {
