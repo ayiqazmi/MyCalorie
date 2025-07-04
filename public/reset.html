@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Redirecting...</title>
+    <script>
+      const params = new URLSearchParams(window.location.search);
+      const oobCode = params.get('oobCode');
+      const mode = params.get('mode');
+
+      if ((mode === 'resetPassword' || mode === 'verifyEmail') && oobCode) {
+  window.location.href = `mycalorie://reset?oobCode=${oobCode}&mode=${mode}`;
+} else {
+  document.body.innerHTML = "Invalid or expired link.";
+}
+
+    </script>
+  </head>
+  <body>
+    <p>Redirecting to app...</p>
+  </body>
+</html>
