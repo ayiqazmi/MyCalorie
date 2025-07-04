@@ -1,40 +1,64 @@
-//askMeal Ai gpt
-
-import { fetchUSDAFoods } from './fetchFoodData';
-import { fetchMalaysianFoodsFromFirestore } from './fetchFoodData';
-
-export async function askMealAI(prompt) {
+export async function askMealAI(mealType = 'lunch') {
   try {
-    const res = await fetch('https://us-central1-my-calorie-fyp.cloudfunctions.net/askMealAI', {
-      method: 'POST',
+    /** 1️⃣ Build a very explicit prompt */
+    const prompt = `
+Give me a JSON array of 10 healthy foods for ${mealType}, each under 500 kcal.
+
+Each item must follow exactly this schema  ⬇
+{
+  "name": "string",
+  "calories": 0,
+  "carbs": 0,
+  "fat": 0,
+  "protein": 0,
+  "fiber": 0,
+  "sugar": 0,
+  "sodium": 0,
+  "iron": 0,
+  "calcium": 0,
+  "halal": true,
+  "category": "${mealType}",
+  "source": "malaysia"
+}
+
+⚠️ Return **only** a valid JSON array — no markdown, no commentary.
+`;
+
+    /** 2️⃣ Call Gemini */
+    const key =  'AIzaSyAuHGnP9O4bqSx4VnhFTQVPD27XieTEx3Q'; // Replace or secure properly
+
+    const url   =
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
+
+    const res   = await fetch(url, {
+      method : 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt }),
+      body    : JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+      }),
     });
 
-    const raw = await res.text();
-    console.log('[askMealAI] raw response:', raw);
-    const filters = JSON.parse(raw);
+    const data      = await res.json();
+    const rawText   = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    console.log('[askMealAI] Gemini raw →', rawText);
 
-    // ✅ Add fallback for missing keywords
-    const keyword = filters.includeKeywords?.[0] || 'healthy';
-    const usdaFoods = await fetchUSDAFoods(keyword, { useCache: false });
+    /** 3️⃣  Pull out the first JSON array (handles code‑fences & chatter) */
+    const jsonBlock =
+      // a) fenced  ```json\n[ ... ]\n```             ⬇
+      rawText.replace(/^```(?:json)?\s*|```$/gi, '').trim() ||
+      // b) unfenced but has other text; grab first […] block
+      (rawText.match(/\[[\s\S]*?]/) || [])[0];
 
-    const malaysianFoods = await fetchMalaysianFoodsFromFirestore(filters.mealType || '');
+    if (!jsonBlock) {
+      console.warn('[askMealAI] No JSON block found');
+      return [];
+    }
 
-    const combined = [...usdaFoods, ...malaysianFoods];
-
-    const filtered = combined.filter(food =>
-      (!filters.maxCalories || food.calories <= filters.maxCalories) &&
-      (!filters.includeKeywords?.length || filters.includeKeywords.some(k =>
-        food.name.toLowerCase().includes(k)
-      ))
-    );
-
-    return filtered.slice(0, 5);
-  } catch (error) {
-    console.error('[askMealAI] error:', error);
+    /** 4️⃣  Parse & return the first 5 items */
+    const foods = JSON.parse(jsonBlock);
+    return Array.isArray(foods) ? foods.slice(0, 5) : [];
+  } catch (err) {
+    console.error('[askMealAI] error:', err);
     return [];
   }
 }
-
-
