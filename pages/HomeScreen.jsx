@@ -315,7 +315,7 @@ return (
     <Feather name="home" size={24} color="#fff" />
     <Text style={styles.navTextWhite}>Home</Text>
   </TouchableOpacity>
-  <TouchableOpacity style={styles.navItem}>
+  <TouchableOpacity style={styles.navItem} onPress={()=>navigation.navigate("HealthDetails")}>
     <Feather name="target" size={24} color="#fff" />
     <Text style={styles.navTextWhite}>Goals</Text>
   </TouchableOpacity>
