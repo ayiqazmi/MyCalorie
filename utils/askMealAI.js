@@ -2,7 +2,7 @@ export async function askMealAI(mealType = 'lunch') {
   try {
     /** 1️⃣ Build a very explicit prompt */
     const prompt = `
-Give me a JSON array of 10 healthy foods for ${mealType}, each under 500 kcal.
+Give me a JSON array of 10 healthy foods for ${mealType} or like ${mealType}, each under 500 kcal.
 
 Each item must follow exactly this schema  ⬇
 {

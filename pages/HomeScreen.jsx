@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Image, TouchableOpacity, TextInput, ScrollView, ImageBackground } from "react-native";
+import { View, Text, StyleSheet, Image, TouchableOpacity, TextInput, ScrollView,ActivityIndicator, ImageBackground } from "react-native";
 import { getAuth } from "firebase/auth";
 import { getFirestore, doc, getDoc, updateDoc } from "firebase/firestore";
 import { Feather } from '@expo/vector-icons';
@@ -12,6 +12,7 @@ import { useFonts } from 'expo-font';
 import background from '../assets/background.png';
 import logo from '../assets/MyCalorie.png';
 import { LinearGradient } from 'expo-linear-gradient';
+
 
 
 
@@ -30,6 +31,8 @@ export default function HomeScreen() {
   if (!fontsLoaded) {
     return <AppLoading />;
   }
+  const [loading, setLoading] = useState(true); // add this at the top with other useStates
+
   const [username, setUsername] = useState("");
   const [profilePic, setProfilePic] = useState(null);
   const [weekData, setWeekData] = useState([]);
@@ -39,8 +42,10 @@ const [height, setHeight] = useState(null);
 const [bmi, setBmi] = useState(null);
 const [mealDaysCount, setMealDaysCount] = useState(0);
   const [feedbacks, setFeedbacks] = useState([]);
+const [targetCalories, setTargetCalories] = useState(null);
 
-
+const [showExceedModal, setShowExceedModal] = useState(false);
+const [exceedAmount, setExceedAmount] = useState(0);
 
   //const totalCalories = 900; // This will come from Firestore later
 
@@ -49,13 +54,27 @@ const [mealDaysCount, setMealDaysCount] = useState(0);
   const auth = getAuth();
   const db = getFirestore();
   const todayLabel = format(new Date(), 'EEE')[0];
-
+const getActivitySuggestions = (excess) => {
+  return [
+    `🚶 Walk for ${Math.ceil(excess / 4)} min`,
+    `🏃 Jog for ${Math.ceil(excess / 7)} min`,
+    `🚴 Cycle for ${Math.ceil(excess / 6)} min`,
+  ];
+};
   useFocusEffect(
     React.useCallback(() => {
       const user = auth.currentUser;
       if (!user) return;
 
-      // Fetch user profile
+
+    let unsubMeal = () => {};
+    let unsubFeedback = () => {};
+
+    const init = async () => {
+      setLoading(true); // ⬅️ show loading spinner
+
+      try {
+    // Fetch user profile
       const userDocRef = doc(db, "users", user.uid);
       getDoc(userDocRef).then((docSnap) => {
         if (docSnap.exists()) {
@@ -135,7 +154,10 @@ fetchFeedbacks(); // run on mount too
       if (docSnap.exists()) {
         const data = docSnap.data();
         Object.values(data).forEach(meal => {
-          total += meal.totalCalories || 0;
+          meal.items.forEach(item=>{
+total += item.calories || 0;
+          });
+          
         });
       }
 
@@ -162,12 +184,11 @@ const fetchHealthDetails = async () => {
   if (userSnap.exists()) {
     const data = userSnap.data();
     const health = data.healthDetails || {};
-    
-    console.log("✅ healthDetails:", health); // ← check this shows BMI
 
+    setTargetCalories(health.targetCalories ?? null);
     setWeight(health.weight ?? null);
     setHeight(health.height ?? null);
-    setBmi(health.bmi ? parseFloat(health.bmi) : null); // ← this line converts string to number
+    setBmi(health.bmi ? parseFloat(health.bmi) : null);
   } else {
     console.log("⚠️ No user document found.");
   }
@@ -192,11 +213,33 @@ fetchLoggedMealDays();
   
 
       return () => unsubscribe(); unsub();
+
+      } catch (error) {
+        console.error("Error loading data:", error);
+      } finally {
+        setLoading(false); // ⬅️ hide loading spinner when done
+      }
+    };
+
+    init();
+
+    return () => {
+      unsubMeal();
+      unsubFeedback();
+    };
+     
     }, [])
   );
 
-
+if (!fontsLoaded || loading) {
+  return (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <ActivityIndicator size="large" color="#6C63FF" />
+    </View>
+  );
+}
 return (
+  
   <ImageBackground
     source={background}
     style={{ flex: 1 }}
@@ -214,7 +257,42 @@ return (
         <TextInput placeholder="Search here ..." style={styles.searchBox} placeholderTextColor="#999" />
         <Ionicons name="notifications-outline" size={24} color="#6C63FF" />
       </View>
+    <ImageBackground source={background} style={{ flex: 1 }} resizeMode="cover">
+      {showExceedModal && (
+        <View style={{
+          position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", zIndex: 999, padding: 20
+        }}>
+          <View style={{ backgroundColor: "#fff", borderRadius: 16, padding: 20, width: "100%", maxWidth: 350 }}>
+            <Text style={{ fontSize: 18, fontWeight: "bold", marginBottom: 10 }}>
+              ⚠️ Exceed Target Calories
+            </Text>
+            <Text style={{ marginBottom: 10 }}>
+              You've exceeded your daily calorie target by <Text style={{ fontWeight: 'bold' }}>{exceedAmount} kcal</Text>.
+            </Text>
+            <Text style={{ marginBottom: 10 }}>Suggested activities:</Text>
+            {getActivitySuggestions(exceedAmount).map((suggestion, index) => (
+              <Text key={index} style={{ marginBottom: 4 }}>• {suggestion}</Text>
+            ))}
+            <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 20 }}>
+              <TouchableOpacity onPress={() => setShowExceedModal(false)}>
+                <Text style={{ color: "#6C63FF", fontWeight: "bold" }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => {
+                setShowExceedModal(false);
+                navigation.navigate("AddMeal");
+              }}>
+                <Text style={{ color: "#6C63FF", fontWeight: "bold" }}>Add Anyway</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
 
+      
+
+ 
+    </ImageBackground>
       {/* Welcome Banner */}
       <View style={styles.welcomeBanner}>
         <Image
@@ -226,7 +304,47 @@ return (
           <Text style={styles.usernameText}>{username}</Text>
         </View>
       </View>
-
+{showExceedModal && (
+  <View style={{
+    position: "absolute",
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 999,
+    padding: 20
+  }}>
+    <View style={{
+      backgroundColor: "#fff",
+      borderRadius: 16,
+      padding: 20,
+      width: "100%",
+      maxWidth: 350
+    }}>
+      <Text style={{ fontSize: 18, fontWeight: "bold", marginBottom: 10 }}>
+        ⚠️ Exceed Target Calories
+      </Text>
+      <Text style={{ marginBottom: 10 }}>
+        You've exceeded your daily calorie target by <Text style={{ fontWeight: 'bold' }}>{exceedAmount} kcal</Text>.
+      </Text>
+      <Text style={{ marginBottom: 10 }}>Suggested activities:</Text>
+      {getActivitySuggestions(exceedAmount).map((suggestion, index) => (
+        <Text key={index} style={{ marginBottom: 4 }}>• {suggestion}</Text>
+      ))}
+      <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 20 }}>
+        <TouchableOpacity onPress={() => setShowExceedModal(false)}>
+          <Text style={{ color: "#6C63FF", fontWeight: "bold" }}>Cancel</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => {
+          setShowExceedModal(false);
+          navigation.navigate("AddMeal"); // ← continue to add
+        }}>
+          <Text style={{ color: "#6C63FF", fontWeight: "bold" }}>Add Anyway</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  </View>
+)}
       {/* Health Info Query Card */}
       <View style={styles.card}>
         <View style={styles.cardTextWrapper}>
@@ -298,9 +416,19 @@ return (
       )}
 
       {/* Floating Add Meal Button */}
-      <TouchableOpacity
-        style={styles.addMealButton}
-        onPress={() => navigation.navigate('AddMeal')}>
+   <TouchableOpacity
+           style={styles.addMealButton}
+
+  onPress={() => {
+    if (targetCalories && totalCalories > targetCalories) {
+      setExceedAmount(totalCalories - targetCalories);
+      setShowExceedModal(true);
+    } else {
+      navigation.navigate('AddMeal');
+    }
+  }}
+  activeOpacity={0.9}
+>
         <Ionicons name="add" size={28} color="white" />
       </TouchableOpacity>
     </ScrollView>
@@ -315,7 +443,7 @@ return (
     <Feather name="home" size={24} color="#fff" />
     <Text style={styles.navTextWhite}>Home</Text>
   </TouchableOpacity>
-  <TouchableOpacity style={styles.navItem} onPress={()=>navigation.navigate("HealthDetails")}>
+  <TouchableOpacity style={styles.navItem} onPress={()=>navigation.navigate("Goals")}>
     <Feather name="target" size={24} color="#fff" />
     <Text style={styles.navTextWhite}>Goals</Text>
   </TouchableOpacity>

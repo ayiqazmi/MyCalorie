@@ -39,7 +39,7 @@ You are a certified Malaysian dietitian. Design a **brand‑new** full‑day mea
 Return **only** minified JSON:
 \`\`\`json
 {
-  "breakfast":[{"name":"","calories":0,"protein":0,"carbs":0,"fat":0}],
+  "breakfast":[{"name":"","image","calories":0,"protein":0,"carbs":0,"fat":0}],
   "lunch":    [ … ],
   "dinner":   [ … ],
   "snacks":   [ … ]

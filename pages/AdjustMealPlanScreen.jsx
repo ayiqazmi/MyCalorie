@@ -10,6 +10,7 @@ import { format } from 'date-fns';
 import { askMealAI } from '../utils/askMealAI';
 import { ImageBackground } from 'react-native';
 import background from '../assets/background.png'; // ✅ Add your background
+import Toast from 'react-native-toast-message';
 
 
 export default function AdjustMealPlanScreen({ navigation, route }) {
@@ -38,40 +39,51 @@ export default function AdjustMealPlanScreen({ navigation, route }) {
     setModalVisible(true);
   };
 
-const handleSaveToPlan = async () => {
-  const userId = getAuth().currentUser.uid;
-  const dateKey = format(selectedDate, 'yyyy-MM-dd');
+  const handleSaveToPlan = async () => {
+    const userId  = getAuth().currentUser.uid;
+    const dateKey = format(selectedDate, 'yyyy-MM-dd');
 
-  try {
-    await setDoc(
-      doc(db, 'users', userId, 'mealPlans', dateKey),
-      {
-        [mealType]: {
-          ...selectedMeal,
-          addedAt: new Date().toISOString(),
+    try {
+      await setDoc(
+        doc(db, 'users', userId, 'mealPlans', dateKey),
+        {
+          [mealType]: {
+            ...selectedMeal,
+            addedAt: new Date().toISOString(),
+          },
         },
-      },
-      { merge: true }
-    );
+        { merge: true }
+      );
 
-    setModalVisible(false);
+      // 🔔 Show toast **before** navigation so user sees it
+      Toast.show({
+        type: 'success',
+        text1: 'Meal Updated',
+        text2: 'Your new meal has been saved 🍽️',
+      });
 
-    // ✅ This is enough — it updates existing MealPlan route
-    navigation.navigate({
-      name: 'MealPlan',
-      params: {
-        updatedMeal: selectedMeal,
-        updatedMealType: mealType,
-        updatedDate: format(selectedDate, 'yyyy-MM-dd') // ✅ safe string
-      },
-      merge: true,
-    });
+      // Short delay keeps the toast on screen long enough
+      setTimeout(() => {
+        navigation.navigate({
+          name: 'MealPlan',
+          params: {
+            updatedMeal: selectedMeal,
+            updatedMealType: mealType,
+            updatedDate: dateKey,
+          },
+          merge: true,
+        });
+      }, 300);   // 250 ms feels snappier but still shows toast
 
-  } catch (err) {
-    console.error('Error saving meal:', err);
-  }
-};
-
+    } catch (err) {
+      console.error('Error saving meal:', err);
+      Toast.show({
+        type: 'error',
+        text1: 'Save failed',
+        text2: 'Please try again',
+      });
+    }
+  };
 
 
 

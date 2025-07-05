@@ -11,6 +11,7 @@ import { getInitialState } from '@react-navigation/native';
 import Toast from 'react-native-toast-message';
 import { BaseToast } from 'react-native-toast-message';
 
+import GoalScreen from './pages/GoalScreen';
 
 import LoginScreen from './pages/auth/LoginScreen';
 import RegisterScreen from './pages/auth/RegisterScreen';
@@ -168,26 +169,6 @@ useEffect(() => {
   ref={navigationRef}
   onReady={() => setNavIsReady(true)} // ✅ flag that navigator is ready
 >
-<Toast
-  config={{
-    success: (props) => (
-      <BaseToast
-        {...props}
-        style={{ borderLeftColor: '#6C63FF' }}
-        contentContainerStyle={{ paddingHorizontal: 15 }}
-        text1Style={{
-          fontSize: 15,
-          fontWeight: 'bold',
-        }}
-        text2Style={{
-          fontSize: 13,
-          color: '#333',
-        }}
-      />
-    ),
-  }}
-/>
-
 
       <Stack.Navigator initialRouteName={getInitialRoute()}>
         {user ? (
@@ -210,7 +191,8 @@ useEffect(() => {
                 <Stack.Screen name="Profile" component={ProfileScreen} />
                 <Stack.Screen name="EditProfile" component={EditProfile} />
                 <Stack.Screen name="Reauthenticate" component={ReauthenticateScreen} />
-                <Stack.Screen name="HealthDetails" component={HealthDetails} />
+                <Stack.Screen name="Goals" component={GoalScreen } />
+                      <Stack.Screen name="HealthDetails" component={HealthDetails} />
                 <Stack.Screen name="AddMeal" component={AddMealScreen} />
                 <Stack.Screen name="MealPlan" component={MealPlanScreen} />
                 <Stack.Screen name="Recipe" component={RecipeScreen} />
@@ -229,6 +211,27 @@ useEffect(() => {
           </>
         )}
       </Stack.Navigator>
+       <Toast
+      config={{
+        success: (props) => (
+          <BaseToast
+            {...props}
+            style={{ borderLeftColor: '#6C63FF' }}
+            contentContainerStyle={{ paddingHorizontal: 15 }}
+            text1Style={{
+              fontSize: 15,
+              fontWeight: 'bold',
+            }}
+            text2Style={{
+              fontSize: 13,
+              color: '#333',
+            }}
+          />
+        ),
+      }}
+      topOffset={60} // optional for spacing below status bar
+    />
     </NavigationContainer>
+    
   );
 }

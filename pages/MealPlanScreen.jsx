@@ -19,7 +19,7 @@ import background from '../assets/background.png';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import Toast from 'react-native-toast-message';
-  
+  import MealImage from '../utils/MealImage';
 
 const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -27,7 +27,18 @@ export default function MealPlanScreen({ route, navigation }) {
   const [mealPlan, setMealPlan] = useState(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [loading, setLoading] = useState(true);
-
+const [selectedMeals, setSelectedMeals] = useState({});
+const toggleSelected = (mealType) => {
+    setSelectedMeals(prev => ({
+      ...prev,
+      [mealType]: !prev[mealType],
+    }));
+  };
+  const [logPopup, setLogPopup] = useState({
+  visible: false,
+  mealType: '',
+  mealItem: null,
+});
   useLayoutEffect(() => {
     navigation.setOptions({ title: 'Your Meal Plan' });
   }, [navigation]);
@@ -134,7 +145,10 @@ useFocusEffect(
 
         const todayFormatted = format(today, 'yyyy-MM-dd');
         setMealPlan(weekPlans[todayFormatted]);
+
+        
         setSelectedDate(today);
+        
       } catch (err) {
         console.error('Failed to load/generate meal plans:', err);
         setMealPlan(null);
@@ -192,6 +206,7 @@ const regenerateTodayPlan = async () => {
   setLoading(true);
 
   try {
+ 
     const auth = getAuth();
     const currentUser = auth.currentUser;
     if (!currentUser) throw new Error('User not signed in');
@@ -235,37 +250,57 @@ const regenerateTodayPlan = async () => {
   } finally {
     setLoading(false);
   }
+
+
 };
   const renderMeal = (mealType, items) => {
     const item = items[0];
+      const isSelected = selectedMeals[mealType] || false;
+
     return (
-      <TouchableOpacity
-        style={styles.mealCard}
-        onPress={() => navigation.navigate('CachedFoodsScreen', { mealType })}
-      >
-        <Image source={{ uri: item?.image || 'https://via.placeholder.com/80' }} style={styles.mealImage} />
-        <View style={{ flex: 1 }}>
-          <Text style={styles.mealType}>{mealType}</Text>
-          <Text style={styles.mealDesc}>{item?.name || 'No meal available'}</Text>
-          {(item?.calories || item?.protein || item?.carbs || item?.fats) && (
-            <View style={styles.nutritionRow}>
-              <Text style={styles.nutrientText}>Calories: {item.calories ?? 0} kcal</Text>
-              <Text style={styles.nutrientText}>Protein: {item.protein ?? 0} g</Text>
-              <Text style={styles.nutrientText}>Carbs: {item.carbs ?? 0} g</Text>
-              <Text style={styles.nutrientText}>Fats: {item.fats ?? 0} g</Text>
-            </View>
-          )}
-          <View style={styles.buttonRow}>
-            <TouchableOpacity
-              style={styles.viewBtn}
-              onPress={() => navigation.navigate('Recipe', { query: item?.name })}
-            >
-              <Text style={styles.btnText}>View Recipe</Text>
-            </TouchableOpacity>
+     <TouchableOpacity
+      style={styles.mealCard}
+      onPress={() => navigation.navigate('CachedFoodsScreen', { mealType })}
+    >
+<MealImage uri={item?.image} foodName={item?.name} style={styles.mealImage} />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.mealType}>{mealType}</Text>
+        <Text style={styles.mealDesc}>{item?.name || 'No meal available'}</Text>
+
+        {(item?.calories || item?.protein || item?.carbs || item?.fats) && (
+          <View style={styles.nutritionRow}>
+            <Text style={styles.nutrientText}>Calories: {item.calories ?? 0} kcal</Text>
+            <Text style={styles.nutrientText}>Protein: {item.protein ?? 0} g</Text>
+            <Text style={styles.nutrientText}>Carbs: {item.carbs ?? 0} g</Text>
+            <Text style={styles.nutrientText}>Fats: {item.fats ?? 0} g</Text>
           </View>
+        )}
+
+        <View style={styles.buttonRow}>
+          <TouchableOpacity
+            style={styles.viewBtn}
+            onPress={() => navigation.navigate('Recipe', { query: item?.name })}
+          >
+            <Text style={styles.btnText}>View Recipe</Text>
+          </TouchableOpacity>
         </View>
-        <Feather name="check-square" size={24} color="#6C63FF" />
+      </View>
+
+      {/* Checkbox Toggle */}
+   <TouchableOpacity   onPress={() =>
+    setLogPopup({
+      visible: true,
+      mealType,
+      mealItem: item,
+    })
+  } style={{ padding: 5 }}>
+        <Feather
+          name={item.selected ? "check-square" : "square"}
+          size={24}
+          color={item.selected ? "#6C63FF" : "#999"}
+        />
       </TouchableOpacity>
+    </TouchableOpacity>
     );
   };
 
@@ -302,7 +337,7 @@ const regenerateTodayPlan = async () => {
                   style={[styles.dayCircle, isSelected && styles.dayCircleSelected]}
                   onPress={() => fetchOrGenerateMealPlan(date)}
                 >
-                  <Text style={[styles.dayText, isSelected && styles.dayTextSelected]}>{day}</Text>
+                  <Text style={[styles.dayText, isSelected && styles.dayTextSelected]}> {format(date, 'EEE')}</Text>
                   <Text style={[styles.dateLabel, isSelected && styles.dayTextSelected]}>
                     {format(date, 'dd MMM')}
                   </Text>
@@ -329,21 +364,101 @@ const regenerateTodayPlan = async () => {
             <Text style={styles.adjustText}>Regenerate Today’s Plan</Text>
           </TouchableOpacity>
         </ScrollView>
+{logPopup.visible && (
+  <View style={styles.popupOverlay}>
+    <View style={styles.popupBox}>
+      <Text style={styles.popupText}>
+        Log "{logPopup.mealItem?.name}" for {format(selectedDate, 'yyyy-MM-dd')}?
+      </Text>
 
+      <TouchableOpacity
+        style={styles.confirmButton}
+        onPress={async () => {
+          try {
+     const auth = getAuth();
+const user = auth.currentUser;
+if (!user) throw new Error('User not authenticated');
+
+// Format the selected date
+const dateKey = format(selectedDate, 'yyyy-MM-dd');
+
+// Reference to: users/{userId}/meals/{date}
+const mealDocRef = doc(db, 'users', user.uid, 'meals', dateKey);
+
+// Fetch existing meals for this date
+const docSnap = await getDoc(mealDocRef);
+let existingItems = [];
+
+if (docSnap.exists()) {
+  const data = docSnap.data();
+  existingItems = data[logPopup.mealType]?.items || [];
+}
+
+// Append the new item
+const updatedItems = [...existingItems, logPopup.mealItem];
+
+// Structure to write: e.g. { breakfast: { items: [ ... ] } }
+const updatedMealData = {
+  [logPopup.mealType]: {
+    items: updatedItems,
+  },
+};
+  const userId = getAuth().currentUser.uid;
+  const docRef = doc(db, 'users', userId, 'mealPlans', dateKey);
+
+  // dot‑notation path → plan.breakfast.0.selected
+  const fieldPath = `plan.${mealType}.${idx}.selected`;
+
+
+    await updateDoc(docRef, { [fieldPath]: !current });
+// Merge into the document
+await setDoc(mealDocRef, updatedMealData, { merge: true });
+
+            Toast.show({
+              type: 'success',
+              text1: 'Meal Logged',
+              text2: `"${logPopup.mealItem?.name}" saved for ${logPopup.mealType}`,
+            });
+          } catch (err) {
+            console.error('Failed to log meal:', err);
+            Toast.show({
+              type: 'error',
+              text1: 'Logging Failed',
+              text2: 'Could not log this meal.',
+            });
+          } finally {
+            setLogPopup({ visible: false, mealType: '', mealItem: null });
+          }
+        }}
+      >
+        <Text style={styles.confirmText}>Confirm</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        onPress={() =>
+          setLogPopup({ visible: false, mealType: '', mealItem: null })
+        }
+      >
+        <Text style={styles.cancelText}>Cancel</Text>
+      </TouchableOpacity>
+    </View>
+  </View>
+)}
         <LinearGradient
           colors={['#8E24AA', '#6C63FF']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           style={styles.bottomBar}
         >
+
           <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate("Home")}>
             <Feather name="home" size={24} color="#fff" />
             <Text style={styles.navTextWhite}>Home</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.navItem}>
-            <Feather name="target" size={24} color="#fff" />
-            <Text style={styles.navTextWhite}>Goals</Text>
-          </TouchableOpacity>
+           <TouchableOpacity style={styles.navItem} onPress={()=>navigation.navigate("Goals")}>
+             <Feather name="target" size={24} color="#fff" />
+             <Text style={styles.navTextWhite}>Goals</Text>
+           </TouchableOpacity>
           <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate("MealPlan")}>
             <Feather name="clipboard" size={24} color="#fff" />
             <Text style={styles.navTextWhite}>Meal Plan</Text>
@@ -512,6 +627,44 @@ navTextWhite: {
   fontSize: 12,
   marginTop: 4,
   color: '#fff',
+},
+popupOverlay: {
+  position: 'absolute',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  backgroundColor: 'rgba(0,0,0,0.5)',
+  justifyContent: 'center',
+  alignItems: 'center',
+  zIndex: 1000,
+},
+popupBox: {
+  backgroundColor: '#fff',
+  padding: 24,
+  borderRadius: 12,
+  width: '80%',
+  alignItems: 'center',
+},
+popupText: {
+  fontSize: 16,
+  marginBottom: 20,
+  textAlign: 'center',
+},
+confirmButton: {
+  backgroundColor: '#6C63FF',
+  paddingVertical: 10,
+  paddingHorizontal: 20,
+  borderRadius: 8,
+  marginBottom: 10,
+},
+confirmText: {
+  color: '#fff',
+  fontWeight: 'bold',
+},
+cancelText: {
+  color: '#888',
+  marginTop: 10,
 },
 
 });

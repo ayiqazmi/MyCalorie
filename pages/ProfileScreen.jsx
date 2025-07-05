@@ -220,8 +220,8 @@ const handleDeleteAccount = () => {
     <Feather name="home" size={24} color="#fff" />
     <Text style={styles.navText}>Home</Text>
   </TouchableOpacity>
-  <TouchableOpacity style={styles.navItem}>
-    <Feather name="target" size={24} color="#fff" />
+  <TouchableOpacity style={styles.navItem} onPress={()=>navigation.navigate("Goals")}>
+    <Feather name="target" size={24} color="#fff"  />
     <Text style={styles.navText}>Goals</Text>
   </TouchableOpacity>
   <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate("MealPlan")}>

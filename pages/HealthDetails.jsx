@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, ScrollView, StyleSheet, TouchableOpacity, Alert, ImageBackground, Dimensions
 } from 'react-native';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc ,setDoc} from 'firebase/firestore';
 import { auth, db } from '../config/firebase-config.js';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -205,6 +205,7 @@ const handleFinalSave = async (finalAge, finalBmi) => {
     goal,
   });
 
+try {
   const docRef = doc(db, 'users', user.uid);
   await updateDoc(docRef, {
     healthDetails: {
@@ -223,6 +224,26 @@ const handleFinalSave = async (finalAge, finalBmi) => {
       targetCalories,
     },
   });
+const heightInMeters = height / 100;
+const maxHealthyWeight = 24.9 * heightInMeters * heightInMeters;
+const weightDiff = weight - maxHealthyWeight;
+  const goalRef = doc(db, `users/${user.uid}/goal`, 'target');
+  const totalCaloriesToLose = weightDiff * 7700;
+const dailyDeficit = maintenanceCalories - targetCalories;
+const estimatedDays = Math.ceil(totalCaloriesToLose / dailyDeficit);
+const estimatedMonths = Math.ceil(estimatedDays / 30);
+  await setDoc(goalRef, {
+    currentWeight: weight,
+    targetWeight: maxHealthyWeight.toFixed(1),
+    weightToLose: weightDiff.toFixed(1),
+    estimatedMonths,
+    createdAt: new Date(),
+  });
+
+  console.log('✅ Health details and goal saved.');
+} catch (err) {
+  console.error('❌ Error saving data:', err);
+}
 
   // Success popup explaining the calculation
   Alert.alert(
