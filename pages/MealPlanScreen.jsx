@@ -426,6 +426,9 @@ await setDoc(mealDocRef, updatedMealData, { merge: true });
               text1: 'Meal Logged',
               text2: `"${logPopup.mealItem?.name}" saved for ${logPopup.mealType}`,
             });
+            setTimeout(() => {
+              navigation.navigate("Home")
+            }, 200);
           } catch (err) {
             console.error('Failed to log meal:', err);
             Toast.show({
