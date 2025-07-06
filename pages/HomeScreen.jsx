@@ -359,13 +359,11 @@ return (
       </View>
 
       {/* Calories Intake Card */}
-      <TouchableOpacity onPress={() => navigation.navigate('AddMeal')} activeOpacity={0.9}>
         <CaloriesIntakeCard
           totalCalories={totalCalories}
           weekData={weekData}
           todayLabel={todayLabel}
         />
-      </TouchableOpacity>
 
       {/* Stats Row */}
       <View style={styles.statsRow}>
