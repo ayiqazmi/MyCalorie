@@ -267,12 +267,12 @@ const regenerateTodayPlan = async () => {
         <Text style={styles.mealType}>{mealType}</Text>
         <Text style={styles.mealDesc}>{item?.name || 'No meal available'}</Text>
 
-        {(item?.calories || item?.protein || item?.carbs || item?.fats) && (
+        {(item?.calories || item?.protein || item?.carbs || item?.fat) && (
           <View style={styles.nutritionRow}>
             <Text style={styles.nutrientText}>Calories: {item.calories ?? 0} kcal</Text>
             <Text style={styles.nutrientText}>Protein: {item.protein ?? 0} g</Text>
             <Text style={styles.nutrientText}>Carbs: {item.carbs ?? 0} g</Text>
-            <Text style={styles.nutrientText}>Fats: {item.fats ?? 0} g</Text>
+            <Text style={styles.nutrientText}>Fats: {item.fat ?? 0} g</Text>
           </View>
         )}
 
