@@ -18,13 +18,16 @@ export async function getRecipeDetails(query) {
 const prompt = `
 Provide detailed recipe information for "${keywords}" as valid JSON only.
 No explanations, no markdown, no comments.
-Return in this exact format:
+Return in this exact format: no need change the format follow return json 
 
 {
   "title": "",
   "image": "",
   "summary": "",
-  "instructions": "",
+  "instructions": {
+  "step":,
+  "insruction
+  },
   "readyInMinutes": "",
   "servings": ""
 }

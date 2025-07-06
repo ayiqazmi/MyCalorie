@@ -82,18 +82,18 @@ const renderInstructions = (instructions) => {
     return <Text style={styles.noSteps}>No instructions provided.</Text>;
   }
 
-  return instructions.map((section, sectionIndex) => (
-    <View key={sectionIndex} style={styles.sectionContainer}>
-      <Text style={styles.sectionTitle}>{section.section}</Text>
-      {section.steps.map((step, stepIndex) => (
-        <View key={stepIndex} style={styles.stepContainer}>
-          <Text style={styles.stepNumber}>{`${stepIndex + 1}. `}</Text>
-          <Text style={styles.stepText}>{step.trim()}</Text>
-        </View>
-      ))}
+  return instructions.map((item, index) => (
+    <View key={index} style={styles.stepContainer}>
+      <Text style={styles.stepNumber}>{`${item.step ?? index + 1}. `}</Text>
+      <Text style={styles.stepText}>
+        {typeof item.instruction === 'string'
+          ? item.instruction.trim()
+          : 'No instruction provided.'}
+      </Text>
     </View>
   ));
 };
+
 
   if (loading) {
     return (
@@ -128,8 +128,8 @@ const renderInstructions = (instructions) => {
       </View>
     );
   }
-
   return (
+    
     <ImageBackground source={background} style={{ flex: 1 }} resizeMode="cover">
       <ScrollView contentContainerStyle={styles.container}>
         <MealImage  mealName={recipe?.title} style={styles.image} />
@@ -142,7 +142,8 @@ const renderInstructions = (instructions) => {
         </Text>
 
         <Text style={styles.instructionHeader}>📋 Instructions</Text>
-        {renderInstructions(recipe.instructions)}
+        
+        {renderInstructions(recipe?.instructions)}
       </ScrollView>
     </ImageBackground>
   );
