@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { getRecipeDetails } from '../utils/spoonacular';
 import background from '../assets/background.png';
+  import MealImage from '../utils/MealImage';
 
 export default function RecipeScreen({ route, navigation }) {
   const { query } = route.params;
@@ -76,27 +77,23 @@ export default function RecipeScreen({ route, navigation }) {
     fetchRecipe();
   }, [query]);
 
-  const renderInstructions = (instructions) => {
-    const matches = instructions?.match(/<li>(.*?)<\/li>/g);
-    if (matches?.length) {
-      return matches.map((item, index) => (
-        <View key={index} style={styles.stepContainer}>
-          <Text style={styles.stepNumber}>{`${index + 1}. `}</Text>
-          <Text style={styles.stepText}>{item.replace(/<\/?li>/g, '').trim()}</Text>
+const renderInstructions = (instructions) => {
+  if (!instructions?.length) {
+    return <Text style={styles.noSteps}>No instructions provided.</Text>;
+  }
+
+  return instructions.map((section, sectionIndex) => (
+    <View key={sectionIndex} style={styles.sectionContainer}>
+      <Text style={styles.sectionTitle}>{section.section}</Text>
+      {section.steps.map((step, stepIndex) => (
+        <View key={stepIndex} style={styles.stepContainer}>
+          <Text style={styles.stepNumber}>{`${stepIndex + 1}. `}</Text>
+          <Text style={styles.stepText}>{step.trim()}</Text>
         </View>
-      ));
-    }
-
-    const steps = instructions?.split(/(?<=\.)\s+(?=[A-Z])/g)?.filter(s => s.trim());
-    if (!steps?.length) return <Text style={styles.noSteps}>No instructions provided.</Text>;
-
-    return steps.map((step, index) => (
-      <View key={index} style={styles.stepContainer}>
-        <Text style={styles.stepNumber}>{`${index + 1}. `}</Text>
-        <Text style={styles.stepText}>{step.trim()}</Text>
-      </View>
-    ));
-  };
+      ))}
+    </View>
+  ));
+};
 
   if (loading) {
     return (
@@ -135,7 +132,8 @@ export default function RecipeScreen({ route, navigation }) {
   return (
     <ImageBackground source={background} style={{ flex: 1 }} resizeMode="cover">
       <ScrollView contentContainerStyle={styles.container}>
-        <Image source={{ uri: recipe.image }} style={styles.image} />
+        <MealImage  mealName={recipe?.title} style={styles.image} />
+        
         <Text style={styles.title}>{recipe.title}</Text>
         <Text style={styles.source}>Source: {recipe.source}</Text>
         <Text style={styles.subtitle}>

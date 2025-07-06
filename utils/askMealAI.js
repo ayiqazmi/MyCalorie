@@ -1,27 +1,44 @@
-export async function askMealAI(mealType = 'lunch') {
+export async function askMealAI({ mealType = 'lunch', allergies = [], healthConditions = [], targetCalories = 2000, caloriesConsumed = 0 }) {
   try {
-    /** 1️⃣ Build a very explicit prompt */
+    const remainingCalories = targetCalories - caloriesConsumed;
+    const allergyList = allergies.join(', ') || 'none';
+    const healthConditionList = healthConditions.join(', ') || 'none';
+
     const prompt = `
-Give me a JSON array of 10 healthy foods for ${mealType} or like ${mealType}, each under 500 kcal.
+You are a certified nutritionist AI.
 
-Each item must follow exactly this schema  ⬇
-{
-  "name": "string",
-  "calories": 0,
-  "carbs": 0,
-  "fat": 0,
-  "protein": 0,
-  "fiber": 0,
-  "sugar": 0,
-  "sodium": 0,
-  "iron": 0,
-  "calcium": 0,
-  "halal": true,
-  "category": "${mealType}",
-  "source": "malaysia"
-}
+Generate a JSON array of 10 healthy foods malaysia suitable for ${mealType}, each item under ${remainingCalories > 500 ? 500 : remainingCalories} kcal, considering:
 
-⚠️ Return **only** a valid JSON array — no markdown, no commentary.
+- User allergies: ${allergyList}
+- User health conditions: ${healthConditionList}
+- User remaining calories for the day: ${remainingCalories} kcal
+
+Each item must follow **exactly this schema**:
+
+[
+  {
+    "name": "string",
+    "calories": 0,
+    "carbs": 0,
+    "fat": 0,
+    "protein": 0,
+    "fiber": 0,
+    "sugar": 0,
+    "sodium": 0,
+    "iron": 0,
+    "calcium": 0,
+    "halal": true,
+    "category": "${mealType}",
+    "source": "malaysia"
+  }
+]
+
+⚠️ Return **only** a valid JSON array — no markdown, no commentary.
+
+Ensure all foods are:
+- Safe for the user’s allergies.
+- Suitable for their health conditions.
+- Contributing healthily within their calorie target.
 `;
 
     /** 2️⃣ Call Gemini */
@@ -60,5 +77,28 @@ Each item must follow exactly this schema  ⬇
   } catch (err) {
     console.error('[askMealAI] error:', err);
     return [];
+  }
+}
+export async function findMealImagePexels(mealName, apiKey) {
+  const url = `https://api.pexels.com/v1/search?query=${encodeURIComponent(mealName)}&per_page=1`;
+
+  try {
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Authorization: apiKey,
+      },
+    });
+
+    const data = await res.json();
+console.log(data);
+    if (data.photos && data.photos.length > 0) {
+      return data.photos[0].src.medium; // You can choose small, medium, large, original
+    } else {
+      return 'https://via.placeholder.com/80?text=Food'; // fallback
+    }
+  } catch (error) {
+    console.error('Error fetching from Pexels:', error);
+    return 'https://via.placeholder.com/80?text=Food';
   }
 }

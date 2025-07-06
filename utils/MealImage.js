@@ -1,26 +1,18 @@
-// components/MealImage.js
-import React, { useState } from 'react';
-import { Image, StyleSheet } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Image } from 'react-native';
+import { findMealImagePexels } from './askMealAI';
 
-export default function MealImage({ uri, style }) {
-  const [imgUri, setImgUri] = useState(uri?.trim() || fallbackUri);
+export default function MealImage({ mealName, style }) {
+  const [imgUri, setImgUri] = useState('https://via.placeholder.com/80?text=Food');
 
-  const fallbackUri = 'https://via.placeholder.com/80?text=Food';
+  useEffect(() => {
+    findMealImagePexels(mealName,"Your key here").then(setImgUri);
+  }, [mealName]);
 
   return (
     <Image
       source={{ uri: imgUri }}
-      style={[styles.image, style]}
-      onError={() => setImgUri(fallbackUri)}
+      style={style}
     />
   );
 }
-
-const styles = StyleSheet.create({
-  image: {
-    width: 80,
-    height: 80,
-    borderRadius: 12,
-    backgroundColor: '#eee',
-  },
-});

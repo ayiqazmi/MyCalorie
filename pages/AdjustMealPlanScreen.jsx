@@ -4,7 +4,7 @@ import { View, Text, Modal, Button, StyleSheet, TouchableOpacity, TextInput, Scr
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
 import { getAuth } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import {  doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../config/firebase-config';
 import { format } from 'date-fns';
 import { askMealAI } from '../utils/askMealAI';
@@ -27,8 +27,53 @@ export default function AdjustMealPlanScreen({ navigation, route }) {
   const [showDatePicker, setShowDatePicker] = useState(false);
 
   const handleAskAI = async () => {
+             const auth = getAuth();
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+
+    const userDocRef = doc(db, 'users', currentUser.uid);
+    const userSnap = await getDoc(userDocRef);
+    if (!userSnap.exists()) return;
+
+    const userData = userSnap.data();
+    const userProfile = {
+      allergies: userData.allergies || [],
+      healthComplications: userData.healthComplications || [],
+      healthGoal: userData.healthGoal || 'maintain',
+      caloriesGoal: userData.targetCalories || 2000,
+    };
+
+    const date = new Date().toISOString().split("T")[0];
+    const mealDocRef = doc(db, "users", currentUser.uid, "meals", date);
+
+    let totalCalories = 0;
+
+    const unsubscribe = onSnapshot(mealDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const mealsData = docSnap.data();
+        let total = 0;
+        Object.values(mealsData).forEach(mealType => {
+          total += mealType.totalCalories || 0;
+        });
+        totalCalories = total;
+       
+      } else {
+        totalCalories = 0;
+      
+      }
+    });
+
     setLoading(true);
-    const meals = await askMealAI(prompt);
+
+    // Call askMealAI with structured params
+    const meals = await askMealAI({
+      mealType: 'All', // or 'breakfast', 'dinner' as needed
+      allergies: userProfile.allergies,
+      healthConditions: userProfile.healthComplications,
+      targetCalories: userProfile.caloriesGoal,
+      caloriesConsumed: totalCalories
+    });
+
     console.log('[AdjustMealPlan] AI Results:', meals);
     setResults(meals);
     setLoading(false);

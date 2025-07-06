@@ -262,7 +262,7 @@ const regenerateTodayPlan = async () => {
       style={styles.mealCard}
       onPress={() => navigation.navigate('CachedFoodsScreen', { mealType })}
     >
-<MealImage uri={item?.image} foodName={item?.name} style={styles.mealImage} />
+<MealImage  mealName={item?.name} style={styles.mealImage} />
       <View style={{ flex: 1 }}>
         <Text style={styles.mealType}>{mealType}</Text>
         <Text style={styles.mealDesc}>{item?.name || 'No meal available'}</Text>

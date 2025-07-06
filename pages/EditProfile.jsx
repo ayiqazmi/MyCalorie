@@ -55,6 +55,7 @@ const EditProfile = ({ navigation, route }) => {
             const data = userDoc.data();
             setUsername(data.username || "");
             setEmail(data.email || "");
+            setProfileImage(data.photoURL || null);
           }
         }
       } catch (error) {
