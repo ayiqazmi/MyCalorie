@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { getAuth } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc,updateDoc } from 'firebase/firestore';
 import { db } from '../config/firebase-config';
 import { format } from 'date-fns';
 import { generateMealPlan } from '../utils/generateMealPlan';
@@ -406,14 +406,21 @@ const updatedMealData = {
   const userId = getAuth().currentUser.uid;
   const docRef = doc(db, 'users', userId, 'mealPlans', dateKey);
 
-  // dot‑notation path → plan.breakfast.0.selected
-  const fieldPath = `plan.${mealType}.${idx}.selected`;
 
+const fieldPath = `plan.${logPopup.mealType}`;
 
-    await updateDoc(docRef, { [fieldPath]: !current });
-// Merge into the document
+let datalast = [
+  {
+    ...logPopup.mealItem,
+    selected: true,
+  },
+];
+console.log(datalast);
+await updateDoc(docRef, {
+  [fieldPath]: datalast
+});
 await setDoc(mealDocRef, updatedMealData, { merge: true });
-
+          
             Toast.show({
               type: 'success',
               text1: 'Meal Logged',
