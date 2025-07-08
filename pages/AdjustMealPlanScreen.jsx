@@ -4,7 +4,7 @@ import { View, Text, Modal, Button, StyleSheet, TouchableOpacity, TextInput, Scr
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
 import { getAuth } from 'firebase/auth';
-import {  doc, getDoc, onSnapshot } from 'firebase/firestore';
+import {  doc, getDoc,  setDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../config/firebase-config';
 import { format } from 'date-fns';
 import { askMealAI } from '../utils/askMealAI';

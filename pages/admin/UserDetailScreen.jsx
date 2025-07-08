@@ -7,6 +7,28 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase-config';
 import { format } from 'date-fns';
 import { getFunctions, httpsCallable } from 'firebase/functions';
+const getMealData = async (uid, date) => {
+  try {
+    const docRef = doc(db, `users/${uid}/meals/${date}`);
+    const docSnap = await getDoc(docRef);
+
+    if (docSnap.exists()) {
+      const mealData = docSnap.data();
+      const meals = {};
+
+      for (const mealType in mealData) {
+        meals[mealType] = mealData[mealType]?.items || [];
+      }
+
+      return meals;
+    } else {
+      return {};
+    }
+  } catch (error) {
+    console.error('Error fetching meal data:', error);
+    return {};
+  }
+};
 
 export default function UserDetailScreen() {
   const route = useRoute();
@@ -44,12 +66,16 @@ export default function UserDetailScreen() {
         const userSnap = await getDoc(doc(db, 'users', userId));
         if (userSnap.exists()) setUserData(userSnap.data());
 
-        const mealsSnap = await getDoc(doc(db, `users/${userId}/meals/${today}`));
-        if (mealsSnap.exists()) {
-          const meals = mealsSnap.data().meals || [];
-          const total = meals.reduce((sum, item) => sum + (item.calories || 0), 0);
-          setTotalCalories(total);
-        }
+        const meals = await getMealData(userId, today);
+
+      let total = 0;
+      for (const mealType in meals) {
+        meals[mealType].forEach((item) => {
+          total += item.calories || 0;
+        });
+      }
+
+      setTotalCalories(total);
       } catch (error) {
         console.error("Error fetching user detail:", error);
       } finally {

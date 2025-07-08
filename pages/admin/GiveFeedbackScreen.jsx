@@ -13,6 +13,46 @@ import {
 import { db, auth } from '../../config/firebase-config';
 import { subDays, format } from 'date-fns';
 
+const generateFeedbackFromGemini = async (summary) => {
+      const key =  'AIzaSyAuHGnP9O4bqSx4VnhFTQVPD27XieTEx3Q'; // Replace or secure properly
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
+
+  // 🔤 Create prompt from summary
+  const formatted = Object.entries(summary)
+    .sort((a, b) => new Date(a[0]) - new Date(b[0]))
+    .map(([date, calories]) => `${date}: ${calories} kcal`)
+    .join('\n');
+
+  const prompt = `
+You are a professional nutritionist. Based on this 7-day calorie intake:
+
+${formatted}
+
+Give constructive feedback, suggestions, and motivation to the user to stay healthy. Keep it short and friendly.
+`;
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+      }),
+    });
+
+    const data = await res.json();
+    const aiMessage = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!aiMessage) throw new Error('No feedback received');
+
+    return aiMessage;
+  } catch (error) {
+    console.error('Gemini API error:', error);
+    return '⚠️ Could not generate feedback. Try again later.';
+  }
+};
+
 export default function GiveFeedbackScreen() {
   const route = useRoute();
   const navigation = useNavigation();
@@ -23,35 +63,52 @@ export default function GiveFeedbackScreen() {
   const [feedbackHistory, setFeedbackHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [aiFeedback, setAIFeedback] = useState('');
 
-  useEffect(() => {
-    const fetchData = async () => {
+   const getMealData = async (uid, date) => {
+    try {
+      const ref = doc(db, `users/${uid}/meals/${date}`);
+      const snap = await getDoc(ref);
+      if (!snap.exists()) return [];
+
+      const data = snap.data();
+      const items = Object.values(data).flatMap(meal => meal?.items || []);
+      return items;
+    } catch (err) {
+      console.error(`Error fetching meal for ${date}:`, err);
+      return [];
+    }
+  };
+
+useEffect(() => {
+  const fetchData = async () => {
+    try {
       const today = new Date();
-      const tempSummary = {};
+      const summaryMap = {};
 
-      // 🔁 Fetch 7 days of calorie intake
+      // 🔁 Fetch last 7 days of calorie intake
       for (let i = 0; i < 7; i++) {
-        const date = subDays(today, i);
-        const formatted = format(date, 'yyyy-MM-dd');
-
+        const date = format(subDays(today, i), 'yyyy-MM-dd');
         try {
-          const mealSnap = await getDoc(doc(db, `users/${userId}/meals/${formatted}`));
-          if (mealSnap.exists()) {
-            const meals = mealSnap.data().meals || [];
-            const total = meals.reduce((sum, item) => sum + (item.calories || 0), 0);
-            tempSummary[formatted] = total;
-          } else {
-            tempSummary[formatted] = 0;
-          }
+          const items = await getMealData(userId, date);
+          const total = items.reduce((sum, item) => sum + (item.calories || 0), 0);
+          summaryMap[date] = total;
         } catch (error) {
-          console.error(`Error fetching meal for ${formatted}:`, error);
-          tempSummary[formatted] = 0;
+          console.error(`Error fetching meal for ${date}:`, error);
+          summaryMap[date] = 0;
         }
       }
 
-      // 📄 Fetch feedbacks
+      setSummary(summaryMap);
+       const response = await generateFeedbackFromGemini(summaryMap);
+         setAIFeedback(response);
+ setFeedback(response); 
+      // 📄 Fetch feedback history
       try {
-        const q = query(collection(db, `users/${userId}/feedbacks`), orderBy('createdAt', 'desc'));
+        const q = query(
+          collection(db, `users/${userId}/feedbacks`),
+          orderBy('createdAt', 'desc')
+        );
         const snapshot = await getDocs(q);
         const list = snapshot.docs.map(doc => ({
           id: doc.id,
@@ -62,12 +119,15 @@ export default function GiveFeedbackScreen() {
         console.error('Error fetching feedbacks:', err);
       }
 
-      setSummary(tempSummary);
+    } catch (outerErr) {
+      console.error('Unexpected error:', outerErr);
+    } finally {
       setLoading(false);
-    };
+    }
+  };
 
-    fetchData();
-  }, [userId]);
+  if (userId) fetchData();
+}, [userId]);
 
   const handleSubmitFeedback = async () => {
     if (!feedback.trim()) {
