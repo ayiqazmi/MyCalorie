@@ -1,80 +1,134 @@
-// pages/admin/AdminMealPlanScreen.jsx
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, ActivityIndicator, Button } from 'react-native';
-import { Feather, Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useRoute, useNavigation } from '@react-navigation/native';
-import { doc, getDoc } from 'firebase/firestore';
+import React, { useState, useEffect, useLayoutEffect } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, ImageBackground,
+} from 'react-native';
+import { Ionicons, Feather } from '@expo/vector-icons';
+import { getAuth } from 'firebase/auth';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase-config';
 import { format } from 'date-fns';
+import background from '../../assets/background.png';
+import { LinearGradient } from 'expo-linear-gradient';
+import MealImage from '../../utils/MealImage';
+import Toast from 'react-native-toast-message';
 
 const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-export default function AdminMealPlanScreen() {
-  const route = useRoute();
-  const navigation = useNavigation();
-  const { userId } = route.params;
+export default function AdminMealPlanScreen({ route, navigation }) {
+  const { targetUserId } = route.params || {};
+  const isAdminView = !!targetUserId;
 
-  const [userName, setUserName] = useState('');
   const [mealPlan, setMealPlan] = useState(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [loading, setLoading] = useState(true);
+  const [updatedBy, setUpdatedBy] = useState(null);
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchTodayPlan();
-    }, [userId])
-  );
+  const userId = targetUserId || getAuth().currentUser?.uid;
 
-  const fetchTodayPlan = async () => {
+  useLayoutEffect(() => {
+    navigation.setOptions({ title: isAdminView ? 'User Meal Plan' : 'Your Meal Plan' });
+  }, [navigation]);
+
+  const fetchMealPlanForDate = async (targetDate) => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const userDocRef = doc(db, 'users', userId);
-      const userSnap = await getDoc(userDocRef);
-      if (!userSnap.exists()) return;
+      const dateKey = format(targetDate, 'yyyy-MM-dd');
+      const mealDocRef = doc(db, 'users', userId, 'mealPlans', dateKey);
+      const docSnap = await getDoc(mealDocRef);
 
-      const userData = userSnap.data();
-      setUserName(userData.username || 'User');
-
-      const today = format(new Date(), 'yyyy-MM-dd');
-      const mealDocRef = doc(db, 'users', userId, 'mealPlans', today);
-      const snap = await getDoc(mealDocRef);
-      if (snap.exists()) {
-        setMealPlan(snap.data().plan);
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setMealPlan(data.plan);
+        setUpdatedBy(data.updatedBy || null);
       } else {
         setMealPlan(null);
       }
-    } catch (err) {
-      console.error('Fetch plan error:', err);
+
+      setSelectedDate(targetDate);
+    } catch (error) {
+      console.error('Error fetching meal plan:', error);
       setMealPlan(null);
     } finally {
       setLoading(false);
     }
   };
 
-  const renderMeal = (mealType, items) => {
-    if (!Array.isArray(items) || items.length === 0 || !items[0]) return null;
-    const item = items[0];
+  useEffect(() => {
+    fetchMealPlanForDate(selectedDate);
+  }, []);
 
+  const regenerateMealPlan = async () => {
+    setLoading(true);
+    try {
+      const auth = getAuth();
+      const adminUser = auth.currentUser;
+      const adminName = adminUser?.displayName || 'Admin';
+
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      if (!userDoc.exists()) throw new Error('User doc missing');
+
+      const userData = userDoc.data();
+      const { generateMealPlan } = await import('../../utils/generateMealPlan');
+      const { plan } = await generateMealPlan({
+        allergies: userData.allergies || [],
+        healthComplications: userData.healthComplications || [],
+        healthGoal: userData.healthGoal || 'maintain',
+        caloriesGoal: userData.targetCalories || 2000,
+      }, selectedDate.getTime());
+
+      const dateKey = format(selectedDate, 'yyyy-MM-dd');
+      const mealDocRef = doc(db, 'users', userId, 'mealPlans', dateKey);
+
+      await setDoc(mealDocRef, {
+        plan,
+        createdAt: new Date().toISOString(),
+        updatedBy: {
+          uid: adminUser.uid,
+          name: adminName,
+          role: 'admin',
+        },
+      });
+
+      setMealPlan(plan);
+      setUpdatedBy({ name: adminName, role: 'admin' });
+      Toast.show({
+        type: 'success',
+        text1: 'Meal Plan Regenerated',
+        text2: 'A new plan has been generated using AI',
+      });
+    } catch (error) {
+      console.error('Failed to regenerate meal plan:', error);
+      Toast.show({ type: 'error', text1: 'Error', text2: 'Failed to regenerate plan.' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const renderMeal = (mealType, items) => {
+    const item = items[0];
     return (
-      <View style={styles.mealCard}>
-        <Image source={{ uri: item?.image || 'https://via.placeholder.com/80' }} style={styles.mealImage} />
+      <TouchableOpacity
+        style={styles.mealCard}
+        onPress={() => navigation.navigate('AdminAdjustMealPlan', {
+          targetUserId,
+          selectedDate: format(selectedDate, 'yyyy-MM-dd'),
+          mealType,
+        })}
+      >
+        <MealImage mealName={item?.name} style={styles.mealImage} />
         <View style={{ flex: 1 }}>
           <Text style={styles.mealType}>{mealType}</Text>
           <Text style={styles.mealDesc}>{item?.name || 'No meal available'}</Text>
-          <View style={styles.nutritionRow}>
-            <Text style={styles.nutrientText}>Calories: {item.calories ?? 0} kcal</Text>
-            <Text style={styles.nutrientText}>Protein: {item.protein ?? 0} g</Text>
-            <Text style={styles.nutrientText}>Carbs: {item.carbs ?? 0} g</Text>
-            <Text style={styles.nutrientText}>Fats: {item.fats ?? 0} g</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.viewBtn}
-            onPress={() => navigation.navigate('Recipe', { query: item?.name })}
-          >
-            <Text style={styles.btnText}>View Recipe</Text>
-          </TouchableOpacity>
+          {(item?.calories || item?.protein || item?.carbs || item?.fat) && (
+            <View style={styles.nutritionRow}>
+              <Text style={styles.nutrientText}>Calories: {item.calories ?? 0} kcal</Text>
+              <Text style={styles.nutrientText}>Protein: {item.protein ?? 0} g</Text>
+              <Text style={styles.nutrientText}>Carbs: {item.carbs ?? 0} g</Text>
+              <Text style={styles.nutrientText}>Fats: {item.fat ?? 0} g</Text>
+            </View>
+          )}
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -88,111 +142,90 @@ export default function AdminMealPlanScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.userHeading}>{userName}'s Meal Plan</Text>
+      <View style={{ flex: 1 }}>
+        <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
+          <View style={styles.dateBar}>
+            <Ionicons name="calendar-outline" size={20} color="#fff" />
+            <Text style={styles.dateText}>
+              Viewing: {format(selectedDate, 'EEEE, dd MMMM yyyy')}
+            </Text>
+          </View>
 
-      <View style={styles.dateBar}>
-        <Ionicons name="calendar-outline" size={20} color="#fff" />
-        <Text style={styles.dateText}>Today: {format(new Date(), 'EEEE, dd MMMM yyyy')}</Text>
+          {updatedBy?.role === 'admin' && (
+            <Text style={{ color: 'red', textAlign: 'center', marginVertical: 6 }}>
+              This plan was updated by admin: {updatedBy.name}
+            </Text>
+          )}
+
+          <View style={styles.weekScroll}>
+            {weekDays.map((_, i) => {
+              const date = new Date();
+              date.setDate(new Date().getDate() + i);
+              const dateKey = format(date, 'yyyy-MM-dd');
+              const isSelected = format(selectedDate, 'yyyy-MM-dd') === dateKey;
+
+              return (
+                <TouchableOpacity
+                  key={i}
+                  style={[styles.dayCircle, isSelected && styles.dayCircleSelected]}
+                  onPress={() => fetchMealPlanForDate(date)}
+                >
+                  <Text style={[styles.dayText, isSelected && styles.dayTextSelected]}>
+                    {format(date, 'EEE')}
+                  </Text>
+                  <Text style={[styles.dateLabel, isSelected && styles.dayTextSelected]}>
+                    {format(date, 'dd MMM')}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {mealPlan && Object.values(mealPlan).some(items => items.length > 0) ? (
+            ['breakfast', 'lunch', 'dinner', 'snacks'].map(type =>
+              mealPlan[type] && mealPlan[type].length > 0 ? (
+                <View key={type}>{renderMeal(type, mealPlan[type])}</View>
+              ) : null
+            )
+          ) : (
+            <Text style={styles.noMealText}>No meal plan found for this day.</Text>
+          )}
+
+          <TouchableOpacity style={styles.adjustBtn} onPress={regenerateMealPlan}>
+            <Text style={styles.adjustText}>Regenerate Plan for This Day</Text>
+          </TouchableOpacity>
+        </ScrollView>
       </View>
-
-      <View style={styles.weekScroll}>
-        {weekDays.map((day, i) => {
-          const date = new Date();
-          date.setDate(new Date().getDate() + i);
-          const dateKey = format(date, 'yyyy-MM-dd');
-          const isSelected = format(selectedDate, 'yyyy-MM-dd') === dateKey;
-
-          return (
-            <TouchableOpacity
-              key={i}
-              style={[styles.dayCircle, isSelected && styles.dayCircleSelected]}
-              onPress={async () => {
-                setLoading(true);
-                const mealDocRef = doc(db, 'users', userId, 'mealPlans', dateKey);
-                const snap = await getDoc(mealDocRef);
-                if (snap.exists()) {
-                  setMealPlan(snap.data().plan);
-                  setSelectedDate(date);
-                } else {
-                  setMealPlan(null);
-                }
-                setLoading(false);
-              }}
-            >
-              <Text style={[styles.dayText, isSelected && styles.dayTextSelected]}>{day}</Text>
-              <Text style={[styles.dateLabel, isSelected && styles.dayTextSelected]}>
-                {format(date, 'dd MMM')}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      <ScrollView style={styles.scroll} contentContainerStyle={{ paddingBottom: 80 }}>
-        {mealPlan && Object.values(mealPlan).some(items => items.length > 0) ? (
-          ['breakfast', 'lunch', 'dinner', 'snacks'].map(type =>
-            mealPlan[type] && mealPlan[type].length > 0 ? (
-              <View key={type}>{renderMeal(type, mealPlan[type])}</View>
-            ) : null
-          )
-        ) : (
-          <Text style={{ color: '#ccc', textAlign: 'center' }}>No suitable meals</Text>
-        )}
-
-        <Button
-          title="Adjust Meal Plan"
-          onPress={() =>
-            navigation.navigate('AdminAdjustMealPlan', {
-              userId,
-              selectedDate: selectedDate.toISOString(),
-            })
-          }
-        />
-      </ScrollView>
-    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#1E2A38',
-  },
-  userHeading: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
-    textAlign: 'center',
-    marginTop: 16,
-    marginBottom: 8,
-  },
+  bg: { flex: 1, backgroundColor: '#1E2A38' },
   dateBar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#6C63FF',
-    padding: 12,
+    padding: 14,
     paddingHorizontal: 20,
   },
   dateText: {
-    color: 'white',
+    color: '#fff',
     fontSize: 16,
     marginLeft: 10,
+    fontWeight: '500',
   },
   weekScroll: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    padding: 10,
-    backgroundColor: '#2A3C53',
+    paddingVertical: 12,
+    backgroundColor: '#2E3C50',
   },
   dayCircle: {
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 8,
-  },
-  dayText: {
-    color: '#A8C1FF',
-    fontWeight: '600',
+    padding: 6,
+    borderRadius: 12,
+    backgroundColor: 'transparent',
   },
   dayCircleSelected: {
     backgroundColor: '#6C63FF',
@@ -200,68 +233,52 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
-  dayTextSelected: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  dateLabel: {
-    fontSize: 12,
-    color: '#A8C1FF',
-    marginTop: 2,
-  },
-  scroll: {
-    padding: 16,
-  },
+  dayText: { color: '#ccc', fontWeight: '600' },
+  dayTextSelected: { color: '#fff', fontWeight: 'bold' },
+  dateLabel: { fontSize: 12, color: '#ccc', marginTop: 2 },
   mealCard: {
     flexDirection: 'row',
     backgroundColor: '#2E3C50',
-    borderRadius: 16,
-    padding: 12,
-    marginBottom: 12,
+    borderRadius: 20,
+    padding: 14,
+    marginVertical: 8,
+    marginHorizontal: 16,
     alignItems: 'center',
-    elevation: 2,
-    borderLeftWidth: 3,
+    borderLeftWidth: 4,
     borderColor: '#6C63FF',
   },
   mealImage: {
     width: 80,
     height: 80,
-    borderRadius: 10,
-    marginRight: 12,
+    borderRadius: 12,
+    marginRight: 14,
   },
-  mealType: {
+  mealType: { fontSize: 16, fontWeight: 'bold', color: '#ffffff' },
+  mealDesc: { color: '#cccccc', marginBottom: 6, fontSize: 14 },
+  nutritionRow: { marginTop: 4 },
+  nutrientText: { fontSize: 12, color: '#aaaaaa' },
+  noMealText: {
+    textAlign: 'center',
+    marginTop: 40,
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#ffffff',
-  },
-  mealDesc: {
-    color: '#cccccc',
-    marginBottom: 8,
-  },
-  viewBtn: {
-    backgroundColor: '#6C63FF',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-    marginTop: 8,
-    alignSelf: 'flex-start',
-  },
-  btnText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '600',
+    color: '#888',
   },
   loaderContainer: {
-    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#1E2A38',
+    paddingVertical: 40,
   },
-  nutritionRow: {
-    marginTop: 6,
+  adjustBtn: {
+    backgroundColor: '#6C63FF',
+    marginHorizontal: 20,
+    marginTop: 20,
+    padding: 14,
+    borderRadius: 14,
+    alignItems: 'center',
   },
-  nutrientText: {
-    fontSize: 12,
-    color: '#cccccc',
+  adjustText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

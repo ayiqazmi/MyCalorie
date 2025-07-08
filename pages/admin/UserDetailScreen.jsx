@@ -87,7 +87,8 @@ export default function UserDetailScreen() {
         <Button
           title="View Full Meal Plan"
           color="#6C63FF"
-          onPress={() => navigation.navigate('AdminMealPlan', { userId })}
+          onPress={() => navigation.navigate('AdminMealPlan', { targetUserId: userId })}
+
         />
         <Button
           title="Give Feedback"

@@ -1,5 +1,7 @@
 export async function askMealAI({ mealType = 'lunch', allergies = [], healthConditions = [], targetCalories = 2000, caloriesConsumed = 0 }) {
   try {
+    allergies = allergies || [];
+    healthConditions = healthConditions || [];
     const remainingCalories = targetCalories - caloriesConsumed;
     const allergyList = allergies.join(', ') || 'none';
     const healthConditionList = healthConditions.join(', ') || 'none';
@@ -77,7 +79,7 @@ Ensure all foods are:
   } catch (err) {
     console.error('[askMealAI] error:', err);
     return [];
-  }
+  }   
 }
 export async function findMealImagePexels(mealName, apiKey) {
   const url = `https://api.pexels.com/v1/search?query=${encodeURIComponent(mealName)}&per_page=1`;
