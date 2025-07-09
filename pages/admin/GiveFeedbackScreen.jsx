@@ -138,14 +138,14 @@ useEffect(() => {
 
     setSubmitting(true);
     try {
-      const feedbackRef = doc(collection(db, `users/${userId}/feedbacks`));
-      await setDoc(feedbackRef, {
-        createdAt: new Date(),
-        caloriesSummary: summary,
-        message: feedback.trim(),
-        givenBy: auth.currentUser.displayName || auth.currentUser.email,
-givenByUid: auth.currentUser.uid, // (optional, for traceability)
-      });
+const feedbackRef = doc(collection(db, `users/${userId}/feedbacks`));
+await setDoc(feedbackRef, {
+  createdAt: new Date(),
+  caloriesSummary: summary,
+  message: feedback.trim(),
+  givenBy: auth.currentUser.displayName || auth.currentUser.email,
+  givenByUid: auth.currentUser.uid,
+});
 
       // ✅ Set notification flag
 await setDoc(doc(db, `users/${userId}`), {
