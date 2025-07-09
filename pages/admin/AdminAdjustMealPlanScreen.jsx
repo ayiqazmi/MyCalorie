@@ -86,16 +86,18 @@ export default function AdminAdjustMealPlanScreen({ navigation, route }) {
     const dateKey = format(selectedDate, 'yyyy-MM-dd');
 
     try {
-      await setDoc(
+await setDoc(
   doc(db, 'users', targetUserId, 'mealPlans', dateKey),
   {
     plan: {
-      [mealType]: [ // Must be array
-        {
-          ...selectedMeal,
-          addedAt: new Date().toISOString(),
-        },
-      ],
+      adjusted: {
+        [mealType]: [
+          {
+            ...selectedMeal,
+            addedAt: new Date().toISOString(),
+          },
+        ],
+      },
     },
     updatedBy: {
       uid: admin.uid,
@@ -106,6 +108,7 @@ export default function AdminAdjustMealPlanScreen({ navigation, route }) {
   },
   { merge: true }
 );
+
 
 
       Toast.show({
@@ -206,48 +209,137 @@ export default function AdminAdjustMealPlanScreen({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-container: { padding: 20, paddingBottom: 100 },
-title: { fontSize: 22, fontWeight: '700', color: '#ffffff', marginBottom: 16 },
-input: {
-  backgroundColor: '#2E3C50',
-  borderRadius: 10,
-  padding: 12,
-  fontSize: 14,
-  borderColor: '#6C63FF',
-  borderWidth: 1,
-  minHeight: 60,
-  marginBottom: 12,
-  color: '#fff',
-  textAlignVertical: 'top',
-},
-card: {
-  backgroundColor: '#2E3C50',
-  borderRadius: 14,
-  padding: 14,
-  marginBottom: 12,
-  borderLeftWidth: 4,
-  borderColor: '#6C63FF',
-},
-name: { fontSize: 16, fontWeight: '600', marginBottom: 4, color: '#fff' },
-nutrient: { fontSize: 13, color: '#ccc' },
-askText: { color: '#fff', fontSize: 15, fontWeight: '600' },
-askButton: {
-  backgroundColor: '#6C63FF',
-  paddingVertical: 10,
-  borderRadius: 10,
-  alignItems: 'center',
-},
-resultTitle: { fontSize: 16, fontWeight: '600', marginTop: 24, marginBottom: 12, color: '#fff' },
+  overlay: {
+    flex: 1,
+    backgroundColor: '#1E2A38',
+  },
+  container: {
+    padding: 20,
+    paddingBottom: 100,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#ffffff',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  input: {
+    backgroundColor: '#2E3C50',
+    borderRadius: 10,
+    padding: 14,
+    fontSize: 14,
+    borderColor: '#6C63FF',
+    borderWidth: 1,
+    minHeight: 70,
+    marginBottom: 16,
+    color: '#fff',
+    textAlignVertical: 'top',
+  },
+  askButton: {
+    backgroundColor: '#6C63FF',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  askText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  resultTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginTop: 20,
+    marginBottom: 12,
+    color: '#ffffff',
+  },
+  card: {
+    backgroundColor: '#2E3C50',
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 14,
+    borderLeftWidth: 4,
+    borderColor: '#6C63FF',
+  },
+  name: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 6,
+    color: '#fff',
+  },
+  nutrient: {
+    fontSize: 13,
+    color: '#ccc',
+    marginBottom: 2,
+  },
 
-  modalContainer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' },
-  modalContent: { backgroundColor: 'white', padding: 20, borderRadius: 16, width: '90%' },
-  modalTitle: { fontSize: 18, fontWeight: '700', marginBottom: 14, color: '#6C63FF' },
-  label: { marginTop: 12, marginBottom: 6, fontWeight: '600', color: '#444' },
-  dateBtn: { backgroundColor: '#eee', padding: 10, borderRadius: 8, alignItems: 'center' },
-  dateText: { fontSize: 14, color: '#333' },
-  modalButtons: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 24 },
-  cancelBtn: { backgroundColor: '#ccc', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 8 },
-  cancelText: { color: '#fff', fontWeight: '600' },
-  saveBtn: { backgroundColor: '#6C63FF', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 8 },
-  saveText: { color: '#fff', fontWeight: '600' },
+  // Modal styling
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    padding: 22,
+    borderRadius: 18,
+    width: '90%',
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 14,
+    color: '#6C63FF',
+    textAlign: 'center',
+  },
+  label: {
+    marginTop: 14,
+    marginBottom: 6,
+    fontWeight: '600',
+    color: '#333',
+  },
+  dateBtn: {
+    backgroundColor: '#eee',
+    padding: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  dateText: {
+    fontSize: 14,
+    color: '#333',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 24,
+  },
+  cancelBtn: {
+    backgroundColor: '#999',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  cancelText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  saveBtn: {
+    backgroundColor: '#6C63FF',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  saveText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
 });
+
