@@ -24,12 +24,13 @@ const generateFeedbackFromGemini = async (summary) => {
     .map(([date, calories]) => `${date}: ${calories} kcal`)
     .join('\n');
 
-  const prompt = `
+const prompt = `
 You are a professional nutritionist. Based on this 7-day calorie intake:
 
 ${formatted}
 
-Give constructive feedback, suggestions, and motivation to the user to stay healthy. Keep it short and friendly.
+Give constructive feedback, helpful suggestions, and motivation. Keep it short, friendly, and easy to understand and
+the response must  without any asterisks or symbols.
 `;
 
   try {
