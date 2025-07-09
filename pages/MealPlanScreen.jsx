@@ -138,13 +138,33 @@ useFocusEffect(
             weekPlans[formatted] = cached.data().plan;
           } else {
             const { plan, createdAt } = await generateMealPlan(userProfile, targetDate.getTime());
-            await setDoc(mealDocRef, { plan, createdAt });
-            weekPlans[formatted] = plan;
+            const wrappedPlan = {
+  plan: {
+    original: plan,
+    adjusted: {},
+  },
+  createdAt,
+};
+
+await setDoc(mealDocRef, wrappedPlan);
+
+// Merge into UI-compatible format
+const mergedPlan = {};
+for (const mealType of ['breakfast', 'lunch', 'dinner', 'snacks']) {
+  mergedPlan[mealType] = {
+    original: plan[mealType] || [],
+    adjusted: [],
+  };
+}
+weekPlans[formatted] = mergedPlan;
+
           }
         }
 
         const todayFormatted = format(today, 'yyyy-MM-dd');
-        setMealPlan(weekPlans[todayFormatted]);
+        const todayPlan = weekPlans[todayFormatted] || null;
+setMealPlan(todayPlan);
+
 
         
         setSelectedDate(today);
@@ -161,46 +181,74 @@ useFocusEffect(
   }, []);
 
   // ✅ Fix: Always use passed date
-  const fetchOrGenerateMealPlan = async (targetDate) => {
-    if (!targetDate) return;
-    setLoading(true);
-    try {
-      const auth = getAuth();
-      const currentUser = auth.currentUser;
-      if (!currentUser) return;
+const fetchOrGenerateMealPlan = async (targetDate) => {
+  if (!targetDate) return;
+  setLoading(true);
+  try {
+    const auth = getAuth();
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
 
-      const userDocRef = doc(db, 'users', currentUser.uid);
-      const userSnap = await getDoc(userDocRef);
-      if (!userSnap.exists()) return;
+    const userDocRef = doc(db, 'users', currentUser.uid);
+    const userSnap = await getDoc(userDocRef);
+    if (!userSnap.exists()) return;
 
-      const userData = userSnap.data();
-      const userProfile = {
-        allergies: userData.allergies || [],
-        healthComplications: userData.healthComplications || [],
-        healthGoal: userData.healthGoal || 'maintain',
-        caloriesGoal: userData.targetCalories || 2000,
-      };
+    const userData = userSnap.data();
+    const userProfile = {
+      allergies: userData.allergies || [],
+      healthComplications: userData.healthComplications || [],
+      healthGoal: userData.healthGoal || 'maintain',
+      caloriesGoal: userData.targetCalories || 2000,
+    };
 
-      const dateKey = format(targetDate, 'yyyy-MM-dd');
-      const mealDocRef = doc(db, 'users', currentUser.uid, 'mealPlans', dateKey);
-      const docSnap = await getDoc(mealDocRef);
+    const dateKey = format(targetDate, 'yyyy-MM-dd');
+    const mealDocRef = doc(db, 'users', currentUser.uid, 'mealPlans', dateKey);
+    const docSnap = await getDoc(mealDocRef);
 
-      if (docSnap.exists()) {
-        setMealPlan(docSnap.data().plan);
-      } else {
-        const { plan, createdAt } = await generateMealPlan(userProfile, targetDate.getTime());
-        await setDoc(mealDocRef, { plan, createdAt });
-        setMealPlan(plan);
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      const original = data.plan?.original || {};
+      const adjusted = data.plan?.adjusted || {};
+      const mergedPlan = {};
+
+      for (const mealType of ['breakfast', 'lunch', 'dinner', 'snacks']) {
+        mergedPlan[mealType] = {
+          original: original[mealType] || [],
+          adjusted: adjusted[mealType] || [],
+        };
       }
 
-      setSelectedDate(targetDate);
-    } catch (err) {
-      console.error('Failed to fetch/generate meal plan for day:', err);
-      setMealPlan(null);
-    } finally {
-      setLoading(false);
+      setMealPlan(mergedPlan);
+    } else {
+      const { plan, createdAt } = await generateMealPlan(userProfile, targetDate.getTime());
+      await setDoc(mealDocRef, {
+        plan: {
+          original: plan,
+        },
+        createdAt,
+      });
+
+      // Convert generated plan into the merged format
+      const mergedPlan = {};
+      for (const mealType of ['breakfast', 'lunch', 'dinner', 'snacks']) {
+        mergedPlan[mealType] = {
+          original: plan[mealType] || [],
+          adjusted: [],
+        };
+      }
+
+      setMealPlan(mergedPlan);
     }
-  };
+
+    setSelectedDate(targetDate);
+  } catch (err) {
+    console.error('Failed to fetch/generate meal plan for day:', err);
+    setMealPlan(null);
+  } finally {
+    setLoading(false);
+  }
+};
+
 
 const regenerateTodayPlan = async () => {
   setLoading(true);
@@ -237,12 +285,23 @@ const regenerateTodayPlan = async () => {
     // 3. Write to Firestore (sub‑collection design)
     const todayPlanRef = doc(db, 'users', currentUser.uid, 'mealPlans', dateKey);
     await setDoc(todayPlanRef, {
-      plan,
-      createdAt:  new Date().toISOString(),// rely on server time
-    });
-    
-    // 4. Update UI
-    setMealPlan(plan);
+  plan: {
+    original: plan,
+    adjusted: {},
+  },
+  createdAt: new Date().toISOString(),
+});
+
+// ✅ format correctly for UI
+const mergedPlan = {};
+for (const mealType of ['breakfast', 'lunch', 'dinner', 'snacks']) {
+  mergedPlan[mealType] = {
+    original: plan[mealType] || [],
+    adjusted: [],
+  };
+}
+setMealPlan(mergedPlan);
+
     setSelectedDate(today);
   } catch (err) {
     console.error('Error regenerating plan:', err);
@@ -253,56 +312,146 @@ const regenerateTodayPlan = async () => {
 
 
 };
-  const renderMeal = (mealType, items) => {
-    const item = items[0];
-      const isSelected = selectedMeals[mealType] || false;
+const renderMeal = (mealType, items) => {
+  const original = items.original?.[0];
+  const adjusted = items.adjusted?.[0];
 
-    return (
-     <TouchableOpacity
-      style={styles.mealCard}
-      onPress={() => navigation.navigate('CachedFoodsScreen', { mealType })}
-    >
-<MealImage  mealName={item?.name} style={styles.mealImage} />
-      <View style={{ flex: 1 }}>
-        <Text style={styles.mealType}>{mealType}</Text>
-        <Text style={styles.mealDesc}>{item?.name || 'No meal available'}</Text>
+  return (
+    <View style={styles.mealSection}>
+      <Text style={styles.mealType}>{mealType.toUpperCase()}</Text>
 
-        {(item?.calories || item?.protein || item?.carbs || item?.fat) && (
-          <View style={styles.nutritionRow}>
-            <Text style={styles.nutrientText}>Calories: {item.calories ?? 0} kcal</Text>
-            <Text style={styles.nutrientText}>Protein: {item.protein ?? 0} g</Text>
-            <Text style={styles.nutrientText}>Carbs: {item.carbs ?? 0} g</Text>
-            <Text style={styles.nutrientText}>Fats: {item.fat ?? 0} g</Text>
+      {/* Original or Current Meal */}
+      {original && (
+        <TouchableOpacity
+          style={styles.mealCard}
+          onPress={() => navigation.navigate('CachedFoodsScreen', { mealType })}
+        >
+          <MealImage mealName={original.name} style={styles.mealImage} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.tagText, { color: 'green' }]}>Current</Text>
+            <Text style={styles.mealDesc}>{original.name}</Text>
+            <View style={styles.nutritionRow}>
+              <Text style={styles.nutrientText}>Calories: {original.calories ?? 0} kcal</Text>
+              <Text style={styles.nutrientText}>Protein: {original.protein ?? 0} g</Text>
+              <Text style={styles.nutrientText}>Carbs: {original.carbs ?? 0} g</Text>
+              <Text style={styles.nutrientText}>Fats: {original.fat ?? 0} g</Text>
+            </View>
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
+                style={styles.viewBtn}
+                onPress={() => navigation.navigate('Recipe', { query: original.name })}
+              >
+                <Text style={styles.btnText}>View Recipe</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        )}
 
-        <View style={styles.buttonRow}>
+          {/* Log Button */}
           <TouchableOpacity
-            style={styles.viewBtn}
-            onPress={() => navigation.navigate('Recipe', { query: item?.name })}
+            onPress={() =>
+              setLogPopup({ visible: true, mealType, mealItem: original })
+            }
+            style={{ padding: 5 }}
           >
-            <Text style={styles.btnText}>View Recipe</Text>
+            <Feather
+              name={original.selected ? 'check-square' : 'square'}
+              size={24}
+              color={original.selected ? '#6C63FF' : '#999'}
+            />
           </TouchableOpacity>
-        </View>
-      </View>
+        </TouchableOpacity>
+      )}
 
-      {/* Checkbox Toggle */}
-   <TouchableOpacity   onPress={() =>
-    setLogPopup({
-      visible: true,
-      mealType,
-      mealItem: item,
-    })
-  } style={{ padding: 5 }}>
-        <Feather
-          name={item.selected ? "check-square" : "square"}
-          size={24}
-          color={item.selected ? "#6C63FF" : "#999"}
-        />
-      </TouchableOpacity>
-    </TouchableOpacity>
-    );
-  };
+      {/* Suggested by Admin */}
+      {adjusted && (
+        <View style={[styles.mealCard, { borderColor: '#FF9800', borderWidth: 1 }]}>
+          <MealImage mealName={adjusted.name} style={styles.mealImage} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.tagText, { color: '#FF9800' }]}>Suggested by Admin</Text>
+            <Text style={styles.mealDesc}>{adjusted.name}</Text>
+            <View style={styles.nutritionRow}>
+              <Text style={styles.nutrientText}>Calories: {adjusted.calories ?? 0} kcal</Text>
+              <Text style={styles.nutrientText}>Protein: {adjusted.protein ?? 0} g</Text>
+              <Text style={styles.nutrientText}>Carbs: {adjusted.carbs ?? 0} g</Text>
+              <Text style={styles.nutrientText}>Fats: {adjusted.fat ?? 0} g</Text>
+            </View>
+
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
+                style={styles.acceptBtn}
+                onPress={() => acceptSuggestion(mealType, adjusted)}
+              >
+                <Text style={styles.btnText}>Accept</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.rejectBtn}
+                onPress={() => rejectSuggestion(mealType)}
+              >
+                <Text style={styles.btnText}>Reject</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
+    </View>
+  );
+};
+
+
+const acceptSuggestion = async (mealType, newMeal) => {
+  try {
+    const userId = getAuth().currentUser.uid;
+    const dateKey = format(selectedDate, 'yyyy-MM-dd');
+    const docRef = doc(db, 'users', userId, 'mealPlans', dateKey);
+
+    await setDoc(docRef, {
+      plan: {
+        original: {
+          [mealType]: [newMeal],
+        },
+        adjusted: {
+          [mealType]: [],
+        },
+      },
+      updatedAt: new Date().toISOString(),
+    }, { merge: true });
+
+    Toast.show({
+      type: 'success',
+      text1: 'Meal Updated',
+      text2: 'You accepted the new suggestion',
+    });
+    fetchOrGenerateMealPlan(selectedDate);
+  } catch (err) {
+    console.error('Accept failed:', err);
+  }
+};
+
+const rejectSuggestion = async (mealType) => {
+  try {
+    const userId = getAuth().currentUser.uid;
+    const dateKey = format(selectedDate, 'yyyy-MM-dd');
+    const docRef = doc(db, 'users', userId, 'mealPlans', dateKey);
+
+    await setDoc(docRef, {
+      plan: {
+        adjusted: {
+          [mealType]: [],
+        },
+      },
+    }, { merge: true });
+
+    Toast.show({
+      type: 'info',
+      text1: 'Rejected',
+      text2: 'Admin suggestion was dismissed',
+    });
+    fetchOrGenerateMealPlan(selectedDate);
+  } catch (err) {
+    console.error('Reject failed:', err);
+  }
+};
+
 
   if (loading) {
     return (
@@ -346,15 +495,18 @@ const regenerateTodayPlan = async () => {
             })}
           </View>
 
-          {mealPlan && Object.values(mealPlan).some(items => items.length > 0) ? (
-            ['breakfast', 'lunch', 'dinner', 'snacks'].map(type =>
-              mealPlan[type] && mealPlan[type].length > 0 ? (
-                <View key={type}>{renderMeal(type, mealPlan[type])}</View>
-              ) : null
-            )
-          ) : (
-            <Text style={styles.noMealText}>No suitable meals for this day.</Text>
-          )}
+{mealPlan && Object.values(mealPlan).some(
+  items => (items.original?.length || 0) > 0 || (items.adjusted?.length || 0) > 0
+) ? (
+  ['breakfast', 'lunch', 'dinner', 'snacks'].map(type =>
+    mealPlan[type]?.original?.length > 0 || mealPlan[type]?.adjusted?.length > 0 ? (
+      <View key={type}>{renderMeal(type, mealPlan[type])}</View>
+    ) : null
+  )
+) : (
+  <Text style={styles.noMealText}>No suible meals fdadthis day.</Text>
+)}
+          
 
           <TouchableOpacity style={styles.adjustBtn} onPress={() => navigation.navigate('AdjustMealPlan')}>
             <Text style={styles.adjustText}>Adjust Meal Plan</Text>
@@ -675,6 +827,34 @@ confirmText: {
 cancelText: {
   color: '#888',
   marginTop: 10,
+},
+acceptBtn: {
+  backgroundColor: '#4CAF50',
+  paddingHorizontal: 12,
+  paddingVertical: 6,
+  borderRadius: 8,
+  marginRight: 10,
+},
+rejectBtn: {
+  backgroundColor: '#F44336',
+  paddingHorizontal: 12,
+  paddingVertical: 6,
+  borderRadius: 8,
+},
+mealSection: {
+  marginTop: 16,
+  marginBottom: 8,
+  paddingHorizontal: 16,
+},
+
+mealType: {
+  fontSize: 18,
+  fontWeight: 'bold',
+  color: '#6C63FF',
+  marginBottom: 8,
+  borderLeftWidth: 4,
+  borderLeftColor: '#6C63FF',
+  paddingLeft: 10,
 },
 
 });
