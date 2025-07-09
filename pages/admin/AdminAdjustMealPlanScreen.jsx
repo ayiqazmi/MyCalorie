@@ -87,19 +87,26 @@ export default function AdminAdjustMealPlanScreen({ navigation, route }) {
 
     try {
       await setDoc(
-        doc(db, 'users', targetUserId, 'mealPlans', dateKey),
+  doc(db, 'users', targetUserId, 'mealPlans', dateKey),
+  {
+    plan: {
+      [mealType]: [ // Must be array
         {
-          [mealType]: {
-            ...selectedMeal,
-            addedAt: new Date().toISOString(),
-          },
-          updatedBy: {
-            uid: admin.uid,
-            displayName: admin.displayName || 'Admin',
-          },
+          ...selectedMeal,
+          addedAt: new Date().toISOString(),
         },
-        { merge: true }
-      );
+      ],
+    },
+    updatedBy: {
+      uid: admin.uid,
+      name: admin.displayName || 'Admin',
+      role: 'admin',
+    },
+    createdAt: new Date().toISOString(),
+  },
+  { merge: true }
+);
+
 
       Toast.show({
         type: 'success',
